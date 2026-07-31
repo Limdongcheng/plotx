@@ -3,10 +3,31 @@ use plotx_core::state::{PlotxApp, TableImportPreviewState};
 
 use super::commit_table_import_preview;
 
+pub(super) fn candidate_selector_label() -> &'static str {
+    "Table"
+}
+
+pub(super) fn all_candidate_import_summary(count: usize) -> String {
+    if count == 1 {
+        "The candidate table will be imported.".to_owned()
+    } else {
+        format!("All {count} candidate tables will be imported.")
+    }
+}
+
 pub(crate) fn table_import_preview_window(app: &mut PlotxApp, ctx: &egui::Context) {
     let Some(mut preview) = app.session.ui.table_import_preview.take() else {
         return;
     };
+    if preview.candidates.is_empty() {
+        app.session.ui.table_import_preview = Some(preview);
+        let committed = commit_table_import_preview(app);
+        debug_assert!(!committed);
+        return;
+    }
+    if preview.selected >= preview.candidates.len() {
+        preview.selected = 0;
+    }
     let mut import = false;
     let mut cancel = false;
     let modal = super::super::modal(
@@ -20,7 +41,7 @@ pub(crate) fn table_import_preview_window(app: &mut PlotxApp, ctx: &egui::Contex
         ui.label("Confirm the inferred schema before the table is added to the project.");
         ui.separator();
         if preview.candidates.len() > 1 {
-            egui::ComboBox::from_label("Worksheet")
+            egui::ComboBox::from_label(candidate_selector_label())
                 .selected_text(&preview.candidates[preview.selected].name)
                 .show_ui(ui, |ui| {
                     for (index, candidate) in preview.candidates.iter().enumerate() {
@@ -64,12 +85,7 @@ fn import_summary(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
     let candidate = &preview.candidates[preview.selected];
     let snapshot = &candidate.typed_state.envelope.revision.snapshot;
     ui.label(format!("Name: {}", candidate.name));
-    if preview.candidates.len() > 1 {
-        ui.label(format!(
-            "{} worksheet(s) will be imported",
-            preview.candidates.len()
-        ));
-    }
+    ui.label(all_candidate_import_summary(preview.candidates.len()));
     ui.label(format!(
         "{} row(s), {} column(s)",
         snapshot.row_count,
@@ -85,6 +101,7 @@ fn import_summary(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
 fn schema_table(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
     ui.strong("Inferred schema");
     egui::ScrollArea::vertical()
+        .id_salt("table_import_schema_scroll")
         .max_height(170.0)
         .show(ui, |ui| {
             egui::Grid::new("table_import_schema_grid")
@@ -133,6 +150,7 @@ fn value_preview(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
         return;
     };
     egui::ScrollArea::horizontal()
+        .id_salt("table_import_value_scroll")
         .max_height(210.0)
         .show(ui, |ui| {
             egui::Grid::new("table_import_value_grid")

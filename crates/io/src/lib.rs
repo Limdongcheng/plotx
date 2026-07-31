@@ -8,6 +8,7 @@ pub mod jcamp_dx;
 pub mod jeol;
 mod mass_spec;
 pub mod nanoscope;
+pub mod origin;
 pub mod waters;
 pub mod xlsx;
 

@@ -1,6 +1,49 @@
 use super::*;
 use std::path::PathBuf;
 
+fn origin_9_initial_structure() -> Vec<u8> {
+    const HEADER_LEN: usize = 115;
+    let mut bytes = b"CPYA 4.3268 195 W64 #\n".to_vec();
+    bytes.extend_from_slice(&(HEADER_LEN as u32).to_le_bytes());
+    bytes.push(b'\n');
+    let mut header = [0_u8; HEADER_LEN];
+    header[0x1b..0x23].copy_from_slice(&9.510195_f64.to_le_bytes());
+    bytes.extend_from_slice(&header);
+    bytes.push(b'\n');
+    bytes.extend_from_slice(&[0, 0, 0, 0, b'\n']);
+    bytes
+}
+
+#[test]
+fn table_import_preview_uses_unique_scroll_area_ids() {
+    let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
+    import_delimited_text(
+        &mut app,
+        "time,value\n0,1\n",
+        DelimitedTableSource::Clipboard,
+    );
+    let ctx = egui::Context::default();
+
+    let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        table_import_preview_window(&mut app, ui.ctx());
+    });
+    let painted = format!("{:?}", output.shapes);
+
+    assert!(!painted.contains("use of ScrollArea ID"), "{painted}");
+}
+
+#[test]
+fn recent_path_classification_reads_enough_bytes_for_origin_9() {
+    let path =
+        std::env::temp_dir().join(format!("plotx-origin-9-probe-{}.opj", uuid::Uuid::new_v4()));
+    std::fs::write(&path, origin_9_initial_structure()).unwrap();
+
+    let classified = recent::classify_open_path(&path);
+
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(classified.unwrap().kind(), RecentOpenKind::OriginProject);
+}
+
 #[test]
 fn mixed_columns_import_as_typed_text_without_being_discarded() {
     let mut app = PlotxApp::new();
@@ -139,30 +182,43 @@ fn clipboard_schema_restores_typed_contract_and_is_retained() {
 #[test]
 fn recent_entries_route_to_their_import_path() {
     let file = |name: &str| PathBuf::from(format!("C:/data/{name}"));
+    let regular = |path: &std::path::Path| {
+        recent::classify_open_path_with_header(path, recent::OpenPathEntryType::RegularFile, || {
+            Ok(([0_u8; recent::OPEN_HEADER_BYTES], 0))
+        })
+        .unwrap()
+    };
+    assert_eq!(regular(&file("session.PLOTX")), RecentOpenKind::Project);
     assert_eq!(
-        recent_open_kind(&file("session.PLOTX")),
-        RecentOpenKind::Project
-    );
-    assert_eq!(
-        recent_open_kind(&file("results.csv")),
+        regular(&file("results.csv")),
         RecentOpenKind::DelimitedTable
     );
     assert_eq!(
-        recent_open_kind(&file("results.tsv")),
+        regular(&file("results.tsv")),
         RecentOpenKind::DelimitedTable
     );
     assert_eq!(
-        recent_open_kind(&file("results.txt")),
+        regular(&file("results.txt")),
         RecentOpenKind::DelimitedTable
     );
+    assert_eq!(regular(&file("results.XLSX")), RecentOpenKind::XlsxTable);
+    assert_eq!(regular(&file("run.abf")), RecentOpenKind::DataFile);
+    assert_eq!(regular(&file("fid")), RecentOpenKind::DataFile);
     assert_eq!(
-        recent_open_kind(&file("results.XLSX")),
-        RecentOpenKind::XlsxTable
+        format!("{:?}", regular(&file("project.opj"))),
+        "OriginProject"
     );
-    assert_eq!(recent_open_kind(&file("run.abf")), RecentOpenKind::DataFile);
-    assert_eq!(recent_open_kind(&file("fid")), RecentOpenKind::DataFile);
     assert_eq!(
-        recent_open_kind(&std::env::temp_dir()),
+        format!("{:?}", regular(&file("project.OPJU"))),
+        "OriginProject"
+    );
+    assert_eq!(
+        recent::classify_open_path_with_header(
+            &std::env::temp_dir(),
+            recent::OpenPathEntryType::Directory,
+            || panic!("directories must not be opened for header reads"),
+        )
+        .unwrap(),
         RecentOpenKind::Folder
     );
 
@@ -179,9 +235,32 @@ fn recent_entries_route_to_their_import_path() {
     std::fs::create_dir(&csv_directory).expect("create CSV-named directory");
     std::fs::create_dir(&plotx_directory).expect("create PlotX-named directory");
     let kinds = (
-        recent_open_kind(&csv_directory),
-        recent_open_kind(&plotx_directory),
+        recent::classify_open_path(&csv_directory).unwrap().kind(),
+        recent::classify_open_path(&plotx_directory).unwrap().kind(),
     );
     std::fs::remove_dir_all(&root).expect("remove recent-open test directory");
     assert_eq!(kinds, (RecentOpenKind::Folder, RecentOpenKind::Folder));
+}
+
+#[test]
+fn project_dispatch_preserves_dirty_document_confirmation() {
+    let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
+    app.mark_document_dirty();
+    let path = PathBuf::from("pending-project.plotx");
+
+    recent::dispatch_classified_path(&mut app, &path, recent::ClassifiedOpenPath::Project);
+
+    let pending = app
+        .session
+        .ui
+        .project_transition
+        .expect("a dirty document must defer the project open");
+    assert_eq!(
+        pending.target,
+        plotx_core::state::ProjectTransition::Open(path)
+    );
+    assert_eq!(
+        pending.phase,
+        plotx_core::state::ProjectTransitionPhase::NeedsConfirmation
+    );
 }
