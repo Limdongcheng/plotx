@@ -302,10 +302,10 @@ impl AutomationUi {
                 .show(ui, |ui| {
                     for node in &workflow.nodes {
                         ui.group(|ui| {
-                            ui.strong(format!(
+                            ui.label(crate::typography::headline(format!(
                                 "{} · {} v{}",
                                 node.id, node.tool_id, node.tool_version
-                            ));
+                            )));
                             ui.label(format!(
                                 "Dependencies: {}",
                                 if node.dependencies.is_empty() {

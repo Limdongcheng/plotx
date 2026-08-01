@@ -13,7 +13,7 @@ use super::task_card::{self, TaskCardGeometry};
 
 /// Sidebar group: a one-line summary plus a button that opens the card.
 pub(super) fn statistics_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> bool {
-    ui.strong("Statistics");
+    ui.label(crate::typography::headline("Statistics"));
     let Some(table) = app.doc.datasets.get(di).and_then(Dataset::as_table) else {
         ui.small("Statistics is available for data tables.");
         return false;
@@ -79,7 +79,7 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
                 let columns = table.numeric_analysis_columns().len();
                 let points = table.typed_state.envelope.revision.snapshot.row_count;
                 ui.horizontal(|ui| {
-                    ui.strong("Statistics");
+                    ui.label(crate::typography::headline("Statistics"));
                     ui.weak(format!("{columns} columns · {points} rows"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
@@ -197,7 +197,7 @@ fn statistics_results(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
         ui.weak("Results you run are saved here and in the project.");
         return;
     }
-    ui.strong("Saved results");
+    ui.label(crate::typography::headline("Saved results"));
     let mut copy: Option<String> = None;
     let mut add_to_board: Option<u64> = None;
     let mut delete: Option<u64> = None;
@@ -206,7 +206,7 @@ fn statistics_results(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
         ui.push_id(analysis.id, |ui| {
             ui.group(|ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.strong(&analysis.title);
+                    ui.label(crate::typography::headline(&analysis.title));
                 });
                 ui.small(plotx_core::state::headline(analysis));
                 egui::CollapsingHeader::new("Details and full numbers")

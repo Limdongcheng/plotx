@@ -5,7 +5,7 @@ use plotx_core::state::{Dataset, PlotxApp, TableDataset, TaskDockTab};
 use super::task_card::{self, TaskCardGeometry};
 
 pub(super) fn curve_fit_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> bool {
-    ui.strong("Curve Fit");
+    crate::typography::headline_label(ui, "Curve Fit");
     let Some(table) = app.doc.datasets.get(di).and_then(Dataset::as_table) else {
         ui.small("Curve fitting is available for data tables.");
         return false;
@@ -74,7 +74,7 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
                 let curves = table.series_bindings.len();
                 let points = table.typed_state.envelope.revision.snapshot.row_count;
                 ui.horizontal(|ui| {
-                    ui.strong("Curve Fit");
+                    crate::typography::headline_label(ui, "Curve Fit");
                     let curve_count = if curves == 1 {
                         "1 curve".to_owned()
                     } else {
@@ -192,7 +192,7 @@ fn fit_settings(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> usize {
         .map(|model| model.name.as_str())
         .unwrap_or("Select model");
     let mut chosen = app.session.ui.fit_model.clone();
-    ui.strong("Model");
+    crate::typography::headline_label(ui, "Model");
     ui.horizontal(|ui| {
         ui.label("Model");
         egui::ComboBox::from_id_salt((di, "curve_fit_model"))
@@ -268,7 +268,7 @@ fn fit_settings(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> usize {
     }
 
     ui.add_space(6.0);
-    ui.strong("Data");
+    crate::typography::headline_label(ui, "Data");
     ui.horizontal(|ui| {
         ui.label("Fit");
         let mut all = app.session.ui.fit_all_columns;
@@ -325,7 +325,7 @@ fn fit_settings(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> usize {
     }
 
     ui.add_space(6.0);
-    ui.strong("Parameters");
+    crate::typography::headline_label(ui, "Parameters");
     if app.session.ui.fit_all_columns {
         ui.checkbox(
             &mut app.session.ui.fit_global_parameters,
@@ -357,7 +357,7 @@ fn fit_settings(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> usize {
     }
 
     ui.add_space(6.0);
-    ui.strong("Fit");
+    crate::typography::headline_label(ui, "Fit");
     ui.horizontal(|ui| {
         use plotx_analysis::fit_model::FitSolver;
         ui.label("Solver");
@@ -521,7 +521,7 @@ fn fit_results(app: &PlotxApp, di: usize, ui: &mut Ui) {
         .any(|binding| binding.fit.is_some())
     {
         ui.separator();
-        ui.strong("Fit Results");
+        crate::typography::headline_label(ui, "Fit Results");
         for binding in &table.series_bindings {
             let Some(reference) = &binding.fit else {
                 continue;
@@ -571,7 +571,7 @@ fn fit_results(app: &PlotxApp, di: usize, ui: &mut Ui) {
                     .schema
                     .column(binding.value_column)
                     .map_or("Value", |column| column.name.as_str());
-                ui.strong(name);
+                crate::typography::headline_label(ui, name);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.small(format!("R² {r2:.4}"));
                 });
@@ -581,7 +581,7 @@ fn fit_results(app: &PlotxApp, di: usize, ui: &mut Ui) {
         }
         for analysis in &table.curve_fit_analyses {
             let statistics = &analysis.result.statistics;
-            ui.strong(format!("{} diagnostics", analysis.name));
+            crate::typography::headline_label(ui, format!("{} diagnostics", analysis.name));
             let aicc = statistics
                 .aicc
                 .map_or_else(|| "n/a".into(), |value| format!("{value:.3}"));
@@ -634,7 +634,7 @@ fn model_editor(app: &mut PlotxApp, ui: &mut Ui) {
         return;
     };
     ui.separator();
-    ui.strong("Custom model editor (.plotxfit JSON)");
+    crate::typography::headline_label(ui, "Custom model editor (.plotxfit JSON)");
     ui.add(
         egui::TextEdit::multiline(&mut source)
             .code_editor()

@@ -66,7 +66,7 @@ pub(super) fn rail_row(ui: &mut Ui, cat: SettingsCategory, selected: bool) -> Re
         pos2(rect.left() + 38.0, cy),
         Align2::LEFT_CENTER,
         cat.label(),
-        FontId::proportional(14.0),
+        crate::typography::headline_font(),
         color,
     );
     resp

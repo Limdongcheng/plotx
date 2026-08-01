@@ -19,7 +19,7 @@ pub(super) fn cursor_group(app: &mut PlotxApp, dataset: usize, ui: &mut Ui) {
     let count = if symmetry { 3 } else { 2 };
 
     ui.separator();
-    ui.strong("Cursors");
+    ui.label(crate::typography::headline("Cursors"));
     ui.small(format!(
         "Press C to cycle through the {count} cursor modes; Esc exits."
     ));

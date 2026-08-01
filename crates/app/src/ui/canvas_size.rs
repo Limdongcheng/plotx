@@ -21,7 +21,7 @@ enum SizeChoice {
 }
 
 pub(crate) fn size_section(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
-    ui.strong("Canvas size");
+    ui.label(crate::typography::headline("Canvas size"));
     ui.add_space(6.0);
 
     let size = app.doc.canvases[ci].size_mm;

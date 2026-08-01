@@ -10,7 +10,7 @@
 use super::commands::{CommandDescriptor, CommandExecutionClass, CommandId};
 use super::properties::{self, PanelRoute};
 use super::*;
-use egui::{Align2, FontId, Key, TextEdit, vec2};
+use egui::{Align2, Key, TextEdit, vec2};
 use plotx_core::properties::PropertyId;
 use plotx_core::state::{ObjectId, PropertyFocus, SettingsCategory};
 
@@ -432,7 +432,7 @@ fn row(ui: &mut Ui, item: &PaletteItem, selected: bool) -> Response {
         egui::pos2(rect.left() + 10.0, rect.center().y),
         Align2::LEFT_CENTER,
         format!("{}  {}", item.prefix, item.label),
-        FontId::proportional(14.0),
+        crate::typography::headline_font(),
         color,
     );
     if !item.detail.is_empty() {
@@ -440,7 +440,7 @@ fn row(ui: &mut Ui, item: &PaletteItem, selected: bool) -> Response {
             egui::pos2(rect.right() - 10.0, rect.center().y),
             Align2::RIGHT_CENTER,
             &item.detail,
-            FontId::proportional(12.0),
+            crate::typography::callout_font(),
             visuals.weak_text_color(),
         );
     }

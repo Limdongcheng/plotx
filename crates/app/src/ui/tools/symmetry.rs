@@ -7,7 +7,7 @@ use plotx_core::state::{
 
 pub(super) fn symmetry_group(app: &mut PlotxApp, dataset: usize, ui: &mut Ui) {
     ui.separator();
-    ui.strong("Symmetry review");
+    ui.label(crate::typography::headline("Symmetry review"));
 
     let Some(nmr) = app.doc.datasets.get(dataset).and_then(Dataset::as_nmr2d) else {
         return;

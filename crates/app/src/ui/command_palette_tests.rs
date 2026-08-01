@@ -141,7 +141,7 @@ fn object_home_route_reveals_expands_scrolls_and_highlights_the_row() {
             .is_some_and(|focus| focus.property == contour::COUNT && focus.pending)
     );
 
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
         properties::panel::contour_section(&mut app, 0, &ids, ui);
     });
@@ -173,7 +173,7 @@ fn canvas_home_route_opens_scrolls_and_highlights_the_row() {
     assert_eq!(app.session.ui.canvas_settings, Some(0));
 
     let target = app.canvas_target(app.doc.canvases[0].resource_id);
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
         properties::panel::canvas_size_section(&mut app, &target, ui);
     });
@@ -207,7 +207,7 @@ fn app_home_route_opens_preferences_scrolls_and_highlights_the_row() {
         plotx_core::state::SettingsCategory::General
     );
 
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
         crate::ui::settings_dialog::settings_window(&mut app, ui.ctx());
     });

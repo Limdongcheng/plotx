@@ -1,10 +1,16 @@
 use std::sync::Arc;
 
 use egui::{FontData, FontDefinitions, FontFamily};
+use fontdb::{Database, Family, Query, Weight};
 
-const SYSTEM_UI_KEY: &str = "plotx-system-ui";
-const SYSTEM_CJK_KEY: &str = "plotx-system-cjk";
+use crate::typography::EMPHASIZED_FAMILY_NAME;
 
+const SYSTEM_UI_REGULAR_KEY: &str = "plotx-system-ui-regular";
+const SYSTEM_UI_SEMIBOLD_KEY: &str = "plotx-system-ui-semibold";
+const SYSTEM_CJK_REGULAR_KEY: &str = "plotx-system-cjk-regular";
+const SYSTEM_CJK_SEMIBOLD_KEY: &str = "plotx-system-cjk-semibold";
+
+#[derive(Clone)]
 struct LoadedFont {
     bytes: Vec<u8>,
     index: u32,
@@ -12,137 +18,248 @@ struct LoadedFont {
 
 #[derive(Default)]
 struct PlatformFonts {
-    system_ui: Option<LoadedFont>,
-    system_cjk: Option<LoadedFont>,
+    system_ui_regular: Option<LoadedFont>,
+    system_ui_semibold: Option<LoadedFont>,
+    system_cjk_regular: Option<LoadedFont>,
+    system_cjk_semibold: Option<LoadedFont>,
 }
 
 pub(crate) fn definitions() -> FontDefinitions {
-    #[cfg(target_os = "macos")]
-    let platform = load_macos_fonts();
-    #[cfg(not(target_os = "macos"))]
-    let platform = PlatformFonts::default();
-
-    build_definitions(platform)
+    build_definitions(load_platform_fonts())
 }
 
 fn build_definitions(platform: PlatformFonts) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
-    let has_platform_font = platform.system_ui.is_some() || platform.system_cjk.is_some();
 
-    if let Some(font) = platform.system_cjk {
-        insert_proportional(&mut fonts, SYSTEM_CJK_KEY, font);
+    if let Some(font) = platform.system_cjk_regular.clone() {
+        insert_font(&mut fonts, SYSTEM_CJK_REGULAR_KEY, font);
     }
-    if let Some(font) = platform.system_ui {
-        insert_proportional(&mut fonts, SYSTEM_UI_KEY, font);
+    if let Some(font) = platform.system_cjk_semibold.clone() {
+        insert_font(&mut fonts, SYSTEM_CJK_SEMIBOLD_KEY, font);
+    }
+    if let Some(font) = platform.system_ui_regular.clone() {
+        insert_font(&mut fonts, SYSTEM_UI_REGULAR_KEY, font);
+    }
+    if let Some(font) = platform.system_ui_semibold.clone() {
+        insert_font(&mut fonts, SYSTEM_UI_SEMIBOLD_KEY, font);
     }
 
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-    if has_platform_font {
-        prioritize_platform_fonts(&mut fonts);
-    }
+    prioritize_proportional(&mut fonts, &platform);
+    build_emphasized_family(&mut fonts, &platform);
     fonts
 }
 
-fn insert_proportional(fonts: &mut FontDefinitions, key: &str, font: LoadedFont) {
+fn insert_font(fonts: &mut FontDefinitions, key: &str, font: LoadedFont) {
     let mut data = FontData::from_owned(font.bytes);
     data.index = font.index;
     fonts.font_data.insert(key.to_owned(), Arc::new(data));
-    fonts
-        .families
-        .get_mut(&FontFamily::Proportional)
-        .expect("egui default fonts include a proportional family")
-        .insert(0, key.to_owned());
 }
 
-fn prioritize_platform_fonts(fonts: &mut FontDefinitions) {
+fn prioritize_proportional(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
     let proportional = fonts
         .families
         .get_mut(&FontFamily::Proportional)
         .expect("egui default fonts include a proportional family");
-    for key in [SYSTEM_CJK_KEY, "phosphor", SYSTEM_UI_KEY] {
-        if let Some(index) = proportional.iter().position(|name| name == key) {
-            let name = proportional.remove(index);
-            proportional.insert(0, name);
+    let mut preferred = Vec::new();
+    if platform.system_ui_regular.is_some() {
+        preferred.push(SYSTEM_UI_REGULAR_KEY.to_owned());
+    }
+    preferred.push("phosphor".to_owned());
+    if platform.system_cjk_regular.is_some() {
+        preferred.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
+    }
+    for name in preferred.iter().rev() {
+        if let Some(index) = proportional.iter().position(|candidate| candidate == name) {
+            proportional.remove(index);
+        }
+        proportional.insert(0, name.clone());
+    }
+}
+
+fn build_emphasized_family(fonts: &mut FontDefinitions, platform: &PlatformFonts) {
+    let mut family = Vec::new();
+    if platform.system_ui_semibold.is_some() {
+        family.push(SYSTEM_UI_SEMIBOLD_KEY.to_owned());
+    } else if platform.system_ui_regular.is_some() {
+        family.push(SYSTEM_UI_REGULAR_KEY.to_owned());
+    }
+    family.push("phosphor".to_owned());
+    if platform.system_cjk_semibold.is_some() {
+        family.push(SYSTEM_CJK_SEMIBOLD_KEY.to_owned());
+    } else if platform.system_cjk_regular.is_some() {
+        family.push(SYSTEM_CJK_REGULAR_KEY.to_owned());
+    }
+    for fallback in fonts
+        .families
+        .get(&FontFamily::Proportional)
+        .expect("egui default fonts include a proportional family")
+    {
+        if !family.contains(fallback) {
+            family.push(fallback.clone());
+        }
+    }
+    fonts
+        .families
+        .insert(FontFamily::Name(EMPHASIZED_FAMILY_NAME.into()), family);
+}
+
+fn load_platform_fonts() -> PlatformFonts {
+    let mut db = Database::new();
+    db.load_system_fonts();
+
+    let (ui_families, cjk_families) = platform_family_queries();
+    PlatformFonts {
+        system_ui_regular: load(
+            &db,
+            "the system UI regular font",
+            &ui_families,
+            Weight::NORMAL,
+        ),
+        system_ui_semibold: load(
+            &db,
+            "the system UI semibold font",
+            &ui_families,
+            Weight::SEMIBOLD,
+        ),
+        system_cjk_regular: load(
+            &db,
+            "the system CJK regular font",
+            &cjk_families,
+            Weight::NORMAL,
+        ),
+        system_cjk_semibold: load(
+            &db,
+            "the system CJK semibold font",
+            &cjk_families,
+            Weight::SEMIBOLD,
+        ),
+    }
+}
+
+fn load(db: &Database, label: &str, families: &[Family<'_>], weight: Weight) -> Option<LoadedFont> {
+    let result = db
+        .query(&Query {
+            families,
+            weight,
+            ..Query::default()
+        })
+        .ok_or_else(|| format!("could not find {label}"))
+        .and_then(|id| {
+            db.with_face_data(id, |bytes, index| LoadedFont {
+                bytes: bytes.to_vec(),
+                index,
+            })
+            .ok_or_else(|| format!("could not read {label}"))
+        });
+
+    match result {
+        Ok(font) => Some(font),
+        Err(error) => {
+            eprintln!("PlotX font fallback: {error}; using the remaining font stack");
+            None
         }
     }
 }
 
 #[cfg(target_os = "macos")]
-fn load_macos_fonts() -> PlatformFonts {
-    use fontdb::{Database, Family, Query, Weight};
+fn platform_family_queries() -> (Vec<Family<'static>>, Vec<Family<'static>>) {
+    (
+        vec![
+            Family::Name("System Font"),
+            Family::Name(".SF NS Text"),
+            Family::Name("SF Pro Text"),
+        ],
+        vec![
+            Family::Name("PingFang SC"),
+            Family::Name("Hiragino Sans GB"),
+        ],
+    )
+}
 
-    let mut db = Database::new();
-    db.load_system_fonts();
+#[cfg(windows)]
+fn platform_family_queries() -> (Vec<Family<'static>>, Vec<Family<'static>>) {
+    (
+        vec![Family::Name("Segoe UI Variable"), Family::Name("Segoe UI")],
+        vec![
+            Family::Name("Microsoft YaHei UI"),
+            Family::Name("Microsoft YaHei"),
+        ],
+    )
+}
 
-    let load = |label: &str, families: &[Family<'_>]| {
-        let result = db
-            .query(&Query {
-                families,
-                weight: Weight::NORMAL,
-                ..Query::default()
-            })
-            .ok_or_else(|| format!("could not find {label}"))
-            .and_then(|id| {
-                db.with_face_data(id, |bytes, index| LoadedFont {
-                    bytes: bytes.to_vec(),
-                    index,
-                })
-                .ok_or_else(|| format!("could not read {label}"))
-            });
-
-        match result {
-            Ok(font) => Some(font),
-            Err(error) => {
-                eprintln!("PlotX font fallback: {error}; using the remaining font stack");
-                None
-            }
-        }
-    };
-
-    PlatformFonts {
-        system_ui: load(
-            "the macOS system UI font",
-            &[Family::Name("System Font"), Family::Name(".SF NS")],
-        ),
-        system_cjk: load("Hiragino Sans GB", &[Family::Name("Hiragino Sans GB")]),
-    }
+#[cfg(all(unix, not(target_os = "macos")))]
+fn platform_family_queries() -> (Vec<Family<'static>>, Vec<Family<'static>>) {
+    (
+        vec![Family::SansSerif],
+        vec![
+            Family::Name("Noto Sans CJK SC"),
+            Family::Name("Noto Sans SC"),
+            Family::Name("Source Han Sans SC"),
+            Family::Name("WenQuanYi Zen Hei"),
+        ],
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::{FontDefinitions, FontFamily};
+    use ab_glyph::{Font, FontRef};
 
-    fn fake_font() -> LoadedFont {
+    fn fake_font(index: u32) -> LoadedFont {
         LoadedFont {
             bytes: vec![0],
-            index: 3,
+            index,
         }
     }
 
     #[test]
-    fn system_fonts_have_the_intended_proportional_priority() {
+    fn system_fonts_have_the_intended_family_priority() {
         let fonts = build_definitions(PlatformFonts {
-            system_ui: Some(fake_font()),
-            system_cjk: Some(fake_font()),
+            system_ui_regular: Some(fake_font(1)),
+            system_ui_semibold: Some(fake_font(2)),
+            system_cjk_regular: Some(fake_font(3)),
+            system_cjk_semibold: Some(fake_font(4)),
         });
 
         assert_eq!(
             &fonts.families[&FontFamily::Proportional][..3],
-            [SYSTEM_UI_KEY, "phosphor", SYSTEM_CJK_KEY]
+            [SYSTEM_UI_REGULAR_KEY, "phosphor", SYSTEM_CJK_REGULAR_KEY]
         );
-        assert_eq!(fonts.font_data[SYSTEM_UI_KEY].index, 3);
-        assert_eq!(fonts.font_data[SYSTEM_CJK_KEY].index, 3);
+        let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
+        assert_eq!(
+            &fonts.families[&emphasized][..3],
+            [SYSTEM_UI_SEMIBOLD_KEY, "phosphor", SYSTEM_CJK_SEMIBOLD_KEY]
+        );
+        assert_eq!(fonts.font_data[SYSTEM_UI_REGULAR_KEY].index, 1);
+        assert_eq!(fonts.font_data[SYSTEM_UI_SEMIBOLD_KEY].index, 2);
+        assert_eq!(fonts.font_data[SYSTEM_CJK_REGULAR_KEY].index, 3);
+        assert_eq!(fonts.font_data[SYSTEM_CJK_SEMIBOLD_KEY].index, 4);
     }
 
     #[test]
-    fn platform_fonts_do_not_change_monospace() {
-        let defaults = FontDefinitions::default();
+    fn regular_face_substitutes_when_semibold_is_missing() {
         let fonts = build_definitions(PlatformFonts {
-            system_ui: Some(fake_font()),
-            system_cjk: Some(fake_font()),
+            system_ui_regular: Some(fake_font(1)),
+            system_ui_semibold: None,
+            system_cjk_regular: None,
+            system_cjk_semibold: None,
         });
+        let emphasized = FontFamily::Name(EMPHASIZED_FAMILY_NAME.into());
+        assert_eq!(fonts.families[&emphasized][0], SYSTEM_UI_REGULAR_KEY);
+    }
 
+    #[test]
+    fn missing_system_fonts_preserve_portable_fallbacks() {
+        let defaults = FontDefinitions::default();
+        let fonts = build_definitions(PlatformFonts::default());
+
+        assert_eq!(fonts.families[&FontFamily::Proportional][0], "phosphor");
+        assert!(
+            fonts.families[&FontFamily::Proportional]
+                .iter()
+                .any(|font| defaults.families[&FontFamily::Proportional].contains(font))
+        );
         assert_eq!(
             fonts.families[&FontFamily::Monospace],
             defaults.families[&FontFamily::Monospace]
@@ -150,49 +267,45 @@ mod tests {
     }
 
     #[test]
-    fn missing_platform_fonts_preserve_portable_fallbacks() {
-        let fonts = build_definitions(PlatformFonts::default());
-        let proportional = &fonts.families[&FontFamily::Proportional];
-
-        assert_eq!(proportional[0], "Ubuntu-Light");
-        assert_eq!(proportional[1], "phosphor");
-    }
-
-    #[test]
-    fn cjk_fallback_never_preempts_phosphor_when_system_ui_is_missing() {
+    fn cjk_fallback_never_preempts_phosphor() {
         let fonts = build_definitions(PlatformFonts {
-            system_ui: None,
-            system_cjk: Some(fake_font()),
+            system_ui_regular: None,
+            system_ui_semibold: None,
+            system_cjk_regular: Some(fake_font(3)),
+            system_cjk_semibold: None,
         });
         let proportional = &fonts.families[&FontFamily::Proportional];
         let phosphor = proportional
             .iter()
             .position(|name| name == "phosphor")
             .unwrap();
-        let system_cjk = proportional
+        let cjk = proportional
             .iter()
-            .position(|name| name == SYSTEM_CJK_KEY)
+            .position(|name| name == SYSTEM_CJK_REGULAR_KEY)
             .unwrap();
-
-        assert!(phosphor < system_cjk);
+        assert!(phosphor < cjk);
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn macos_system_faces_load_with_expected_glyph_coverage() {
-        use ab_glyph::{Font, FontRef};
-
-        let platform = load_macos_fonts();
-        let system_ui = platform.system_ui.expect("macOS system UI font");
-        let system_cjk = platform.system_cjk.expect("macOS Simplified Chinese font");
-        let system_ui = FontRef::try_from_slice_and_index(&system_ui.bytes, system_ui.index)
-            .expect("valid macOS system UI face");
-        let system_cjk = FontRef::try_from_slice_and_index(&system_cjk.bytes, system_cjk.index)
-            .expect("valid macOS Simplified Chinese face");
-
-        assert_ne!(system_ui.glyph_id('A').0, 0);
-        for ch in ['中', '文', '图'] {
-            assert_ne!(system_cjk.glyph_id(ch).0, 0, "missing glyph {ch}");
+    fn loaded_platform_faces_have_expected_glyph_coverage() {
+        let platform = load_platform_fonts();
+        for face in [
+            platform.system_ui_regular.as_ref(),
+            platform.system_ui_semibold.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let face = FontRef::try_from_slice_and_index(&face.bytes, face.index)
+                .expect("valid system UI face");
+            assert_ne!(face.glyph_id('A').0, 0);
+        }
+        if let Some(cjk) = platform.system_cjk_regular.as_ref() {
+            let cjk = FontRef::try_from_slice_and_index(&cjk.bytes, cjk.index)
+                .expect("valid system CJK face");
+            for ch in ['中', '文', '图'] {
+                assert_ne!(cjk.glyph_id(ch).0, 0, "missing glyph {ch}");
+            }
         }
     }
 }

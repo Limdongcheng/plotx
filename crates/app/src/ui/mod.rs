@@ -233,7 +233,7 @@ fn render_status(app: &PlotxApp, ui: &mut Ui, dark: bool) {
             ui.horizontal(|ui| {
                 let show_summary = ui.available_width() > 460.0;
                 ui.add(
-                    egui::Label::new(&app.session.status)
+                    egui::Label::new(crate::typography::callout(&app.session.status))
                         .truncate()
                         .sense(Sense::hover()),
                 )
@@ -241,7 +241,7 @@ fn render_status(app: &PlotxApp, ui: &mut Ui, dark: bool) {
                 if show_summary && let Some(di) = app.active_dataset() {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            egui::RichText::new(app.doc.datasets[di].summary())
+                            crate::typography::callout(app.doc.datasets[di].summary())
                                 .color(ui.visuals().weak_text_color()),
                         );
                     });

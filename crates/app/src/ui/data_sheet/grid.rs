@@ -94,7 +94,7 @@ pub(super) fn typed_table_grid(
             for column in &schema.columns {
                 let (_, response) = header.col(|ui| {
                     ui.vertical(|ui| {
-                        ui.strong(&column.name);
+                        ui.label(crate::typography::headline(&column.name));
                         let mut detail = cell::type_label(&column.logical_type).to_owned();
                         if let Some(unit) = &column.unit {
                             detail = format!("{} · {detail}", unit.display_unit);

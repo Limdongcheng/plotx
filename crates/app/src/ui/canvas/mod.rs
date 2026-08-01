@@ -393,13 +393,10 @@ fn welcome_page(app: &mut PlotxApp, ui: &mut Ui) {
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 ui.label(
-                    egui::RichText::new("PlotX")
-                        .size(34.0)
-                        .color(ui.visuals().strong_text_color()),
+                    crate::typography::large_title("PlotX").color(ui.visuals().strong_text_color()),
                 );
                 ui.label(
                     egui::RichText::new("Scientific data analysis and figure preparation")
-                        .size(17.0)
                         .color(ui.visuals().text_color()),
                 );
                 if !cfg!(feature = "datafusion") {
@@ -481,7 +478,6 @@ fn welcome_recent(app: &mut PlotxApp, ui: &mut Ui) {
             .add(
                 egui::Button::new(
                     egui::RichText::new(format!("{glyph}  {name}"))
-                        .size(14.0)
                         .color(ui.visuals().hyperlink_color),
                 )
                 .frame(false),
@@ -498,20 +494,14 @@ fn welcome_recent(app: &mut PlotxApp, ui: &mut Ui) {
 }
 
 fn welcome_heading(ui: &mut Ui, text: &str) {
-    ui.label(
-        egui::RichText::new(text)
-            .size(19.0)
-            .color(ui.visuals().strong_text_color()),
-    );
+    ui.label(crate::typography::title_3(text).color(ui.visuals().strong_text_color()));
     ui.add_space(4.0);
 }
 
 fn welcome_action(ui: &mut Ui, glyph: &str, label: &str) -> bool {
     ui.add(
         egui::Button::new(
-            egui::RichText::new(format!("{glyph}  {label}"))
-                .size(14.0)
-                .color(ui.visuals().hyperlink_color),
+            egui::RichText::new(format!("{glyph}  {label}")).color(ui.visuals().hyperlink_color),
         )
         .frame(false),
     )

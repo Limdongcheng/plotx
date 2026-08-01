@@ -59,7 +59,10 @@ fn task_row(
         };
         for tab in WorkflowTab::ALL {
             let selected = app.session.ui.ribbon_tab == tab;
-            let response = ui.selectable_label(selected, RichText::new(tab.label()).strong());
+            let response = ui.selectable_label(
+                selected,
+                crate::typography::headline(tab.label()),
+            );
             if response.clicked() {
                 select_workflow_tab(app, tab);
                 // Picking a task re-opens a manually collapsed command area;
@@ -184,7 +187,7 @@ fn command_row(
         if !hidden.is_empty() {
             ui.menu_button(format!("{} More", icon::DOTS_THREE), |ui| {
                 for (_, (group, _, entries)) in hidden {
-                    ui.strong(group);
+                    ui.label(crate::typography::headline(group));
                     for command in entries {
                         overflow_item(app, clipboard, ui, command.id);
                     }
@@ -229,11 +232,7 @@ fn ribbon_group(
                 }
             });
             ui.add_space(1.0);
-            ui.label(
-                RichText::new(title)
-                    .small()
-                    .color(ui.visuals().weak_text_color()),
-            );
+            ui.label(crate::typography::caption(title).color(ui.visuals().weak_text_color()));
         },
     );
 }
@@ -361,7 +360,7 @@ fn ribbon_button(
     let mut job = LayoutJob::default();
     let response = if density == RibbonDensity::Full {
         let icon_font = FontId::proportional(16.0);
-        let label_font = FontId::proportional(11.0);
+        let label_font = crate::typography::subheadline_font();
         let selected = command.checked == Some(true);
         // Keep the command name in the button for accessibility, but paint the
         // two visible rows ourselves so both share the tile's exact centre.
@@ -424,7 +423,7 @@ fn ribbon_button(
                 &label,
                 0.0,
                 TextFormat {
-                    font_id: FontId::proportional(12.0),
+                    font_id: crate::typography::callout_font(),
                     color: Color32::PLACEHOLDER,
                     ..Default::default()
                 },

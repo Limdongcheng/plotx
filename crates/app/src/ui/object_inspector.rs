@@ -130,7 +130,7 @@ fn inspector_header(app: &PlotxApp, canvas: Option<usize>, ids: &[ObjectId], ui:
         .show(
             ui,
             |ui| {
-                ui.strong("Inspector");
+                ui.label(crate::typography::headline("Inspector"));
             },
             |ui| {
                 ui.add(egui::Label::new(&context).truncate())
@@ -204,7 +204,7 @@ fn section_button(
 
 fn custom_section_heading(app: &mut PlotxApp, section: &'static str, title: &str, ui: &mut Ui) {
     ui.separator();
-    let response = ui.strong(title);
+    let response = ui.label(crate::typography::headline(title));
     if app.session.ui.requested_inspector_section.as_deref() == Some(section) {
         response.scroll_to_me(Some(egui::Align::Min));
         app.session.ui.requested_inspector_section = None;

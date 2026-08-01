@@ -9,7 +9,7 @@ use plotx_core::state::{NamedView, PlotxApp};
 pub(super) fn board_views_section(app: &mut PlotxApp, ui: &mut Ui) {
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.strong("Board views");
+        ui.label(crate::typography::headline("Board views"));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let can_save = !app.session.ui.board_view_name.trim().is_empty();
             if ui

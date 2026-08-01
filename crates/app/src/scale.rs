@@ -18,8 +18,6 @@
 use plotx_core::settings::{self, MonitorScale};
 use plotx_core::state::{MonitorScaleStatus, PlotxApp};
 
-/// egui's default `Body` text size in points; the em everything is judged by.
-const BODY_PT: f32 = 12.5;
 /// Minimum physical body-text height. At a ~55 cm desktop viewing distance
 /// 3.0 mm subtends ≈0.31°, above the ~0.25° reading-comfort floor, while
 /// staying denser than the OS-recommended parity (~3.3 mm at an effective
@@ -44,7 +42,7 @@ fn snap(zoom: f32) -> f32 {
 /// per inch (`None` when the display did not report its size) at the OS scale
 /// factor `native_ppp`.
 fn auto_zoom(ppi: Option<f32>, native_ppp: f32) -> f32 {
-    let native_em_px = BODY_PT * native_ppp.max(0.5);
+    let native_em_px = crate::typography::BODY_PT * native_ppp.max(0.5);
     let physical_need_px = ppi.map_or(0.0, |ppi| MIN_EM_MM / 25.4 * ppi);
     let need_px = physical_need_px.max(MIN_EM_PX);
     let raw = need_px / native_em_px;
@@ -347,8 +345,8 @@ mod tests {
     #[test]
     fn auto_zoom_upscales_dense_displays_with_os_scaling_off() {
         // ~144 PPI panel (Windows would recommend 150%) at forced 100%:
-        // 3.0 mm / 25.4 × 144 = 17.0 px needed over a 12.5 px em.
-        assert_eq!(auto_zoom(Some(144.0), 1.0), 1.35);
+        // 3.0 mm / 25.4 × 144 = 17.0 px needed over a 13 px em.
+        assert_eq!(auto_zoom(Some(144.0), 1.0), 1.3);
         // 4K 13" laptop ≈ 339 PPI forced to 100% clamps to the ceiling.
         assert_eq!(auto_zoom(Some(339.0), 1.0), 3.0);
     }

@@ -125,7 +125,7 @@ pub(super) fn render(app: &mut PlotxApp, host: &mut Ui) {
                     })
                     .collect::<Vec<_>>();
                 ui.horizontal(|ui| {
-                    ui.strong("Processing");
+                    ui.label(crate::typography::headline("Processing"));
                     ui.weak(if output.iter().all(|d| *d == Domain::Time) {
                         "Time-domain output"
                     } else {
@@ -210,7 +210,7 @@ fn render_axis(
         .unwrap_or(input_domain);
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        ui.strong(axis.label());
+        ui.label(crate::typography::headline(axis.label()));
         ui.weak(format!(
             "· {} to {}",
             domain_label(input_domain),
@@ -249,7 +249,10 @@ fn render_axis(
         && let Some(step) = shape.pipeline.steps.iter().find(|step| step.id == selected)
     {
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.strong(format!("{} parameters", editors::kind_label(&step.kind)));
+            ui.label(crate::typography::headline(format!(
+                "{} parameters",
+                editors::kind_label(&step.kind)
+            )));
             if matches!(step.kind, StepKind::Fft) {
                 ui.small("Transforms the signal from time domain to frequency domain.");
             } else {

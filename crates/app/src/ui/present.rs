@@ -1,7 +1,7 @@
 //! Present mode: a transient slideshow that hides every editing panel and renders
 //! one canvas full screen, letterboxed and centred, with keyboard/click paging.
 
-use egui::{Align2, Color32, FontId, Key, Sense};
+use egui::{Align2, Color32, Key, Sense};
 use plotx_core::state::PlotxApp;
 use plotx_render::{Document, DocumentViewport, Rect as PlotRect};
 
@@ -149,7 +149,7 @@ fn paint(app: &mut PlotxApp, ui: &mut egui::Ui) {
             egui::pos2(area.right() - 14.0, area.bottom() - 12.0),
             Align2::RIGHT_BOTTOM,
             format!("{} / {}", page + 1, count),
-            FontId::proportional(13.0),
+            crate::typography::headline_font(),
             Color32::from_gray(150),
         );
     }

@@ -150,7 +150,7 @@ fn canvas_list(app: &mut PlotxApp, ui: &mut Ui) {
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(4.0);
-        ui.strong("Layers");
+        ui.label(crate::typography::headline("Layers"));
         object_list(app, ci, ui);
     }
 

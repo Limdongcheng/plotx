@@ -18,7 +18,7 @@ pub(super) fn slice_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
     };
 
     ui.separator();
-    ui.strong("Slice");
+    ui.label(crate::typography::headline("Slice"));
     ui.small(if is_true_2d {
         "Pull a 1D row or column out of the contour as an independent trace."
     } else {
@@ -114,7 +114,7 @@ fn slice_group_2d(app: &mut PlotxApp, di: usize, active: bool, ui: &mut Ui) {
 
 fn projection_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
     ui.separator();
-    ui.strong("Axis projections");
+    ui.label(crate::typography::headline("Axis projections"));
     ui.small("1D traces drawn alongside the contour's top (F2) and left (F1) axes.");
 
     let Some((ci, object)) = active_plot_for(app, di) else {

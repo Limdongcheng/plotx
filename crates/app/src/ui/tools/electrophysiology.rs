@@ -22,7 +22,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     };
     let mut dirty = false;
 
-    ui.strong("Recording");
+    ui.label(crate::typography::headline("Recording"));
     ui.label(format!(
         "ABF {} · {:.3} kHz · {} sweeps",
         recording.data.abf_version,
@@ -59,7 +59,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
         });
 
     ui.separator();
-    ui.strong("Sweeps");
+    ui.label(crate::typography::headline("Sweeps"));
     ui.horizontal(|ui| {
         if ui.button("Select all").clicked() {
             recording.selected_sweeps.fill(true);
@@ -77,7 +77,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     });
 
     ui.separator();
-    ui.strong("Processing");
+    ui.label(crate::typography::headline("Processing"));
     dirty |= ui
         .checkbox(
             &mut recording.processing.gaussian_lowpass_enabled,
@@ -98,7 +98,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     });
 
     ui.separator();
-    ui.strong("Metadata / quality control");
+    ui.label(crate::typography::headline("Metadata / quality control"));
     dirty |= ui
         .text_edit_singleline(&mut recording.metadata.cell_id)
         .changed();
@@ -137,7 +137,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     );
 
     ui.separator();
-    ui.strong("Region statistics");
+    ui.label(crate::typography::headline("Region statistics"));
     let region = selected_region
         .and_then(|id| {
             recording
@@ -171,7 +171,7 @@ pub(super) fn electrophysiology_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
         });
 
     ui.separator();
-    ui.strong("Stimulus / IV");
+    ui.label(crate::typography::headline("Stimulus / IV"));
     if let Some(stimulus) = &mut recording.stimulus {
         ui.label(format!("Source: {:?}", stimulus.source));
         if stimulus.source != StimulusSource::Abf {

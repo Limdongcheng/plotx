@@ -75,7 +75,7 @@ fn nus_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
         return;
     };
     ui.separator();
-    ui.strong("Non-uniform sampling");
+    ui.label(crate::typography::headline("Non-uniform sampling"));
     let scheme = if nus.echo_antiecho {
         "echo/anti-echo (P/N)"
     } else {

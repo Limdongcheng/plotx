@@ -160,7 +160,7 @@ fn multiplet_section(
         return;
     }
     ui.separator();
-    ui.strong("Multiplets");
+    ui.label(crate::typography::headline("Multiplets"));
     if ui
         .add_enabled(range.is_some(), Button::new("Analyze multiplets"))
         .on_hover_text(

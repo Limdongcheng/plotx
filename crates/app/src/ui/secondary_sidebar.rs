@@ -27,7 +27,7 @@ fn body(app: &mut PlotxApp, ui: &mut Ui) {
 
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        ui.strong("Dataset tools");
+        ui.label(crate::typography::headline("Dataset tools"));
         if let Some(di) = app.active_dataset() {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak(app.doc.datasets[di].kind_label());

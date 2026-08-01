@@ -99,7 +99,7 @@ pub(in crate::ui) fn canvas_settings_window(app: &mut PlotxApp, ctx: &egui::Cont
 
 /// Notes are auto-listed below the page on the board.
 fn panels_section(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
-    ui.strong("Panels");
+    ui.label(crate::typography::headline("Panels"));
     ui.add_space(6.0);
 
     ui.weak("Letters are top-left in each plot; notes list below the page (board only).");
@@ -120,7 +120,7 @@ fn panels_section(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
             continue;
         };
         ui.horizontal(|ui| {
-            ui.strong(&letter);
+            ui.label(crate::typography::headline(&letter));
             crate::ui::properties::panel::panel_inline_section(app, ci, id, ui);
         });
     }

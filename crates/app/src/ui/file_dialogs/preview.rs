@@ -99,7 +99,7 @@ fn import_summary(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
 }
 
 fn schema_table(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
-    ui.strong("Inferred schema");
+    ui.label(crate::typography::headline("Inferred schema"));
     egui::ScrollArea::vertical()
         .id_salt("table_import_schema_scroll")
         .max_height(170.0)
@@ -107,10 +107,10 @@ fn schema_table(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
             egui::Grid::new("table_import_schema_grid")
                 .striped(true)
                 .show(ui, |ui| {
-                    ui.strong("Column");
-                    ui.strong("Type");
-                    ui.strong("Unit");
-                    ui.strong("Nullable");
+                    ui.label(crate::typography::headline("Column"));
+                    ui.label(crate::typography::headline("Type"));
+                    ui.label(crate::typography::headline("Unit"));
+                    ui.label(crate::typography::headline("Nullable"));
                     ui.end_row();
                     for column in &preview.candidates[preview.selected]
                         .typed_state
@@ -136,7 +136,7 @@ fn schema_table(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
 }
 
 fn value_preview(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
-    ui.strong("First rows");
+    ui.label(crate::typography::headline("First rows"));
     let typed = &preview.candidates[preview.selected].typed_state;
     let snapshot = &typed.envelope.revision.snapshot;
     let codecs = plotx_core::data::CodecRegistry::with_arrow_ipc();
@@ -157,7 +157,7 @@ fn value_preview(ui: &mut egui::Ui, preview: &TableImportPreviewState) {
                 .striped(true)
                 .show(ui, |ui| {
                     for column in &snapshot.schema.columns {
-                        ui.strong(&column.name);
+                        ui.label(crate::typography::headline(&column.name));
                     }
                     ui.end_row();
                     let rows = batch.row_ids.len().min(8);

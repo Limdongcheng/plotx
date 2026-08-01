@@ -44,7 +44,7 @@ pub(super) fn mass_spectrometry_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     let selected_spectrum = dataset.selected_spectrum().cloned();
     let extraction_count = dataset.extracted_spectra.len();
 
-    ui.strong("Acquisition");
+    ui.label(crate::typography::headline("Acquisition"));
     let active_label = streams
         .iter()
         .find(|(id, _, _)| *id == active_stream)
@@ -70,7 +70,7 @@ pub(super) fn mass_spectrometry_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
     }
 
     ui.separator();
-    ui.strong("Scan preview");
+    ui.label(crate::typography::headline("Scan preview"));
     if let Some(scan) = &selected_spectrum {
         ui.label(format!(
             "{:.3} min · native scan {}",
@@ -90,7 +90,7 @@ pub(super) fn mass_spectrometry_group(app: &mut PlotxApp, di: usize, ui: &mut Ui
         .clicked();
 
     ui.separator();
-    ui.strong("Extract spectrum");
+    ui.label(crate::typography::headline("Extract spectrum"));
     ui.small("Choose a method, select a retention-time range, then extract a fixed spectrum.");
     let range = app
         .session

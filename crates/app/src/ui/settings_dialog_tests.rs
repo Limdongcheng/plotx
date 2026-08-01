@@ -4,7 +4,7 @@ use super::*;
 use egui::{Pos2, RawInput, Rect, vec2};
 
 fn run_all_categories(app: &mut PlotxApp, size: egui::Vec2) {
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     for cat in SettingsCategory::ALL {
         app.session.ui.settings_dialog.as_mut().unwrap().category = cat;
         let input = RawInput {
