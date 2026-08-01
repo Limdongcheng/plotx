@@ -70,6 +70,7 @@ egui = "0.34"
 eframe = { version = "0.34", default-features = true }
 egui_extras = { version = "0.34", default-features = false }
 egui-phosphor = "0.12"
+fontdb = "0.23"
 muda = { version = "0.19.3", default-features = false }
 rfd = "0.17"
 zip = { version = "8.6", default-features = false, features = ["deflate"] }

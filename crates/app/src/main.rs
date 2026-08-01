@@ -3,6 +3,7 @@
 // Release Windows builds are GUI apps: suppress the console window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod fonts;
 mod observability;
 mod scale;
 mod shot;
@@ -636,9 +637,7 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             #[cfg(windows)]
             apply_windows_frame_polish(cc);
-            let mut fonts = egui::FontDefinitions::default();
-            egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-            cc.egui_ctx.set_fonts(fonts);
+            cc.egui_ctx.set_fonts(fonts::definitions());
             // The UI-scale commands own Ctrl+= / Ctrl+- / Ctrl+0 so the change
             // persists per monitor; egui's built-in handler would apply an
             // unrecorded zoom on top.
