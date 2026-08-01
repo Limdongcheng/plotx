@@ -140,7 +140,7 @@ fn project_transition_dialog(app: &mut PlotxApp, ctx: &egui::Context, saving: bo
                 ui.add_space(8.0);
                 egui::Frame::new()
                     .fill(ui.visuals().error_fg_color.linear_multiply(0.12))
-                    .corner_radius(6)
+                    .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
                     .inner_margin(8)
                     .show(ui, |ui| {
                         ui.colored_label(ui.visuals().error_fg_color, &app.session.status);

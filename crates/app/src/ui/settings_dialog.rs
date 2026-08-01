@@ -18,7 +18,7 @@ const MIN_W: f32 = 468.0;
 const MIN_H: f32 = 300.0;
 const FLUSH_DELAY: f64 = 0.6;
 
-pub(crate) use chrome::{apply_chrome_theme, sync_chrome_theme};
+pub(crate) use chrome::{apply_chrome_theme, surface_corner_radius, sync_chrome_theme};
 use chrome::{footer, rail_row};
 use controls::{render_recent, ui_scale_row, update_status_row};
 
