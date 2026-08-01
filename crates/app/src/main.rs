@@ -22,6 +22,11 @@ const RECOVERY_RETRY_INTERVAL: Duration = Duration::from_secs(15);
 /// pixel size it is created at before the UI scale is known.
 pub(crate) const DEFAULT_WINDOW_PT: [f32; 2] = [1100.0, 700.0];
 
+#[cfg(target_os = "macos")]
+const APPLICATION_ICON_PNG: &[u8] = include_bytes!("../../../assets/icon-256-macos.png");
+#[cfg(not(target_os = "macos"))]
+const APPLICATION_ICON_PNG: &[u8] = include_bytes!("../../../assets/icon-256.png");
+
 /// A verified update prepared by the service. It is handed to the helper only
 /// after the GUI loop exits.
 static PENDING_INSTALL: Mutex<Option<plotx_core::update::InstallPlan>> = Mutex::new(None);
@@ -54,6 +59,11 @@ fn transition_ready_after_save(
     current_generation: u64,
 ) -> bool {
     saved && captured_generation == current_generation
+}
+
+fn application_icon() -> egui::IconData {
+    eframe::icon_data::from_png_bytes(APPLICATION_ICON_PNG)
+        .expect("embedded application icon PNG is valid")
 }
 
 pub(crate) fn record_shot_failure(error: String) {
@@ -599,10 +609,7 @@ fn main() -> eframe::Result<()> {
         .with_inner_size(inner)
         .with_min_inner_size([720.0, 460.0])
         .with_title("PlotX")
-        .with_icon(
-            eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon-256.png"))
-                .expect("embedded icon PNG is valid"),
-        );
+        .with_icon(application_icon());
     // Windows and Linux draw a VS Code style title bar (logo + menus + window
     // controls) inside the content area; macOS keeps the native title bar and
     // system menu.
@@ -733,30 +740,5 @@ fn main() -> eframe::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn canceling_close_clears_update_restart_intent() {
-        RELAUNCH_REQUESTED.store(false, Ordering::Relaxed);
-        request_relaunch();
-        assert!(RELAUNCH_REQUESTED.load(Ordering::Relaxed));
-        cancel_relaunch();
-        assert!(!RELAUNCH_REQUESTED.load(Ordering::Relaxed));
-    }
-
-    #[test]
-    fn recovery_is_not_rewritten_without_a_new_generation() {
-        assert!(recovery_needed(true, 7, None));
-        assert!(!recovery_needed(true, 7, Some(7)));
-        assert!(recovery_needed(true, 8, Some(7)));
-        assert!(!recovery_needed(false, 8, Some(7)));
-    }
-
-    #[test]
-    fn transition_waits_when_an_edit_lands_after_the_save_snapshot() {
-        assert!(transition_ready_after_save(true, 7, 7));
-        assert!(!transition_ready_after_save(true, 7, 8));
-        assert!(!transition_ready_after_save(false, 7, 7));
-    }
-}
+#[path = "main_tests.rs"]
+mod tests;
