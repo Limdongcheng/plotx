@@ -8,6 +8,7 @@ use plotx_core::state::ProcessingSchemeDialogState;
 
 mod delimited;
 mod discovery;
+mod origin;
 mod path;
 mod preview;
 mod recent;
@@ -21,26 +22,23 @@ use xlsx::import_xlsx_table_path;
 pub(crate) fn import_delimited_table(app: &mut PlotxApp) {
     let Some(path) = rfd::FileDialog::new()
         .add_filter(
-            "Table (*.csv, *.tsv, *.txt, *.xlsx)",
-            &["csv", "tsv", "txt", "xlsx"],
+            "Table (*.csv, *.tsv, *.txt, *.xlsx, *.opj)",
+            origin::IMPORT_TABLE_FILTER_EXTENSIONS,
+        )
+        .add_filter(
+            origin::ORIGIN_PROJECT_FILTER_LABEL,
+            origin::ORIGIN_PROJECT_FILTER_EXTENSIONS,
         )
         .add_filter("Excel workbook (*.xlsx)", &["xlsx"])
         .add_filter("CSV (*.csv)", &["csv"])
         .add_filter("TSV (*.tsv)", &["tsv"])
         .add_filter("All files", &["*"])
-        .set_title("Import a comma, tab, or semicolon delimited table")
+        .set_title("Import a table")
         .pick_file()
     else {
         return;
     };
-    if path
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("xlsx"))
-    {
-        import_xlsx_table_path(app, &path);
-    } else {
-        import_delimited_table_path(app, &path);
-    }
+    open_recent_path(app, &path);
 }
 
 fn import_delimited_table_path(app: &mut PlotxApp, path: &std::path::Path) {
@@ -288,9 +286,34 @@ pub(crate) fn import_delimited_text_with_schema(
 }
 
 pub(crate) fn commit_table_import_preview(app: &mut PlotxApp) -> bool {
+    commit_table_import_preview_with_recent(app, PlotxApp::note_recent_file)
+}
+
+pub(crate) fn commit_table_import_preview_with_recent<F>(
+    app: &mut PlotxApp,
+    mut note_recent_file: F,
+) -> bool
+where
+    F: FnMut(&mut PlotxApp, &std::path::Path),
+{
     let Some(preview) = app.session.ui.table_import_preview.take() else {
         return false;
     };
+    if preview.candidates.is_empty() {
+        app.session.record_operation(OperationReport::<()>::failure(
+            preview.report.id,
+            OperationKind::TableImport,
+            "Table import failed because there are no supported tables to import.",
+            Diagnostic::new(
+                Severity::Error,
+                DiagnosticCode::TableImportFailed,
+                "The import preview contains no supported table candidates.",
+            )
+            .with_source("app.table_import")
+            .with_context("stage", "preview_commit"),
+        ));
+        return false;
+    }
     for candidate in preview.candidates {
         app.import_table_dataset_typed(
             candidate.name,
@@ -305,7 +328,7 @@ pub(crate) fn commit_table_import_preview(app: &mut PlotxApp) -> bool {
     // through the status line. Recording the import first keeps that
     // diagnostic: `record_operation` replaces the status unconditionally.
     if let Some(path) = preview.recent_path {
-        app.note_recent_file(&path);
+        note_recent_file(app, &path);
     }
     true
 }
@@ -321,8 +344,12 @@ pub(crate) fn load_and_note(app: &mut PlotxApp, path: &std::path::Path) {
 pub(crate) fn open_file(app: &mut PlotxApp) {
     if let Some(paths) = rfd::FileDialog::new()
         .add_filter(
-            "All supported data (*.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip)",
-            &["spm", "pfc", "abf", "jdf", "fid", "ser", "zip"],
+            "All supported data (*.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
+            origin::OPEN_FILE_FILTER_EXTENSIONS,
+        )
+        .add_filter(
+            origin::ORIGIN_PROJECT_FILTER_LABEL,
+            origin::ORIGIN_PROJECT_FILTER_EXTENSIONS,
         )
         .add_filter("Bruker NanoScope AFM (*.spm, *.pfc)", &["spm", "pfc"])
         .add_filter("Axon Binary Format 2 (*.abf)", &["abf"])
@@ -334,7 +361,7 @@ pub(crate) fn open_file(app: &mut PlotxApp) {
         .pick_files()
     {
         for path in paths {
-            load_and_note(app, &path);
+            open_recent_path(app, &path);
         }
     }
 }
