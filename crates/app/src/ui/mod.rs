@@ -36,7 +36,7 @@ mod windows;
 
 use data_sheet::*;
 use diagnostics::*;
-use egui::{Color32, Pos2, Response, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, Id, InnerResponse, Mesh, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 use export_dialog::*;
 use plotx_core::actions::Action;
 use plotx_core::export::{ExportPageScope, ExportScopeKind, ExportSettings};
@@ -139,16 +139,12 @@ pub fn render(
     // A sidebar may have changed an expanded Phase step before the canvas paints.
     app.sync_phase_interaction();
     egui::CentralPanel::default()
-        .frame(
-            egui::Frame::new()
-                .fill(workspace_fill(dark))
-                .inner_margin(egui::Margin {
-                    left: 4,
-                    right: 4,
-                    top: 4,
-                    bottom: 2,
-                }),
-        )
+        .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
+            central_workspace_margin(
+                app.session.primary_sidebar_visible,
+                app.session.secondary_sidebar_visible,
+            ),
+        ))
         .show_inside(ui, |ui| {
             canvas::render_central(app, ui);
             tools::render_processing_task(app, ui);
@@ -358,7 +354,7 @@ fn render_sidebars(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_width:
         let panel = egui::Panel::left("primary_sidebar")
             .frame(egui::Frame::NONE.inner_margin(egui::Margin {
                 left: 8,
-                right: 4,
+                right: 0,
                 top: 4,
                 bottom: 8,
             }))
@@ -374,21 +370,37 @@ fn render_sidebars(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_width:
                 .default_size(app.session.primary_sidebar_width)
                 .size_range(190.0..=420.0)
         };
-        panel.show_inside(ui, |ui| {
-            let size = ui.available_size();
-            let frame = card_frame(dark, egui::Margin::ZERO);
-            let inset = frame.total_margin().sum();
-            frame.show(ui, |ui| {
-                ui.set_min_size((size - inset).max(Vec2::ZERO));
-                primary_sidebar::render(app, ui);
-            });
-        });
+        let response = show_resizable_sidebar(
+            panel,
+            ui,
+            Id::new("primary_sidebar"),
+            SidebarEdge::Right,
+            |ui| {
+                let size = ui.available_size();
+                let frame = card_frame(dark, egui::Margin::ZERO);
+                let inset = frame.total_margin().sum();
+                frame
+                    .show(ui, |ui| {
+                        ui.set_min_size((size - inset).max(Vec2::ZERO));
+                        primary_sidebar::render(app, ui);
+                    })
+                    .response
+                    .rect
+            },
+        );
+        paint_sidebar_resize_edge(
+            ui,
+            Id::new("primary_sidebar"),
+            response.inner,
+            SidebarEdge::Right,
+            dark,
+        );
     }
 
     if app.session.secondary_sidebar_visible {
         let panel = egui::Panel::right("secondary_sidebar")
             .frame(egui::Frame::NONE.inner_margin(egui::Margin {
-                left: 4,
+                left: 0,
                 right: 8,
                 top: 4,
                 bottom: 8,
@@ -405,16 +417,195 @@ fn render_sidebars(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_width:
                 .default_size(app.session.secondary_sidebar_width)
                 .size_range(230.0..=460.0)
         };
-        panel.show_inside(ui, |ui| {
-            let size = ui.available_size();
-            let frame = card_frame(dark, egui::Margin::ZERO);
-            let inset = frame.total_margin().sum();
-            frame.show(ui, |ui| {
-                ui.set_min_size((size - inset).max(Vec2::ZERO));
-                secondary_sidebar::render(app, ui);
-            });
-        });
+        let response = show_resizable_sidebar(
+            panel,
+            ui,
+            Id::new("secondary_sidebar"),
+            SidebarEdge::Left,
+            |ui| {
+                let size = ui.available_size();
+                let frame = card_frame(dark, egui::Margin::ZERO);
+                let inset = frame.total_margin().sum();
+                frame
+                    .show(ui, |ui| {
+                        ui.set_min_size((size - inset).max(Vec2::ZERO));
+                        secondary_sidebar::render(app, ui);
+                    })
+                    .response
+                    .rect
+            },
+        );
+        paint_sidebar_resize_edge(
+            ui,
+            Id::new("secondary_sidebar"),
+            response.inner,
+            SidebarEdge::Left,
+            dark,
+        );
     }
+}
+
+#[derive(Clone, Copy)]
+enum SidebarEdge {
+    Left,
+    Right,
+}
+
+const SIDEBAR_RESIZE_GRAB_RADIUS: f32 = 2.0;
+const SIDEBAR_HIGHLIGHT_RADIUS: f32 = 90.0;
+const SIDEBAR_HIGHLIGHT_SAMPLE_STEP: f32 = 6.0;
+
+fn central_workspace_margin(primary_visible: bool, secondary_visible: bool) -> egui::Margin {
+    egui::Margin {
+        left: if primary_visible { 8 } else { 4 },
+        right: if secondary_visible { 8 } else { 4 },
+        top: 4,
+        bottom: 2,
+    }
+}
+
+/// Keep the resize interaction local to the visible card edge while replacing
+/// egui's full-height, high-contrast separator with restrained feedback.
+fn show_resizable_sidebar<R>(
+    panel: egui::Panel,
+    ui: &mut Ui,
+    panel_id: Id,
+    edge: SidebarEdge,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> InnerResponse<R> {
+    let resizable = sidebar_resize_enabled(ui, panel_id, edge);
+    let normal_style = ui.style().clone();
+    ui.style_mut().visuals.widgets.hovered.fg_stroke = Stroke::NONE;
+    ui.style_mut().visuals.widgets.active.fg_stroke = Stroke::NONE;
+    ui.style_mut().interaction.resize_grab_radius_side = SIDEBAR_RESIZE_GRAB_RADIUS;
+    let response = panel.resizable(resizable).show_inside(ui, |ui| {
+        ui.set_style(normal_style.clone());
+        add_contents(ui)
+    });
+    ui.set_style(normal_style);
+    response
+}
+
+fn sidebar_resize_enabled(ui: &Ui, panel_id: Id, edge: SidebarEdge) -> bool {
+    let resize_id = panel_id.with("__resize");
+    let previous_response = ui.ctx().read_response(resize_id);
+    if previous_response
+        .as_ref()
+        .is_some_and(|response| response.dragged())
+    {
+        return true;
+    }
+    let card_rect = ui
+        .ctx()
+        .data(|data| data.get_temp::<Rect>(panel_id.with("plotx_card_rect")));
+    let Some(card_rect) = card_rect else {
+        return true;
+    };
+    let on_edge = ui
+        .ctx()
+        .pointer_hover_pos()
+        .is_some_and(|pointer| sidebar_edge_hit_rect(card_rect, edge).contains(pointer));
+    if on_edge && previous_response.is_none() {
+        // The resizer was omitted on the previous pass. Register it now and
+        // schedule the pass on which egui can hit-test its new rectangle.
+        ui.ctx().request_repaint();
+    }
+    on_edge
+}
+
+fn sidebar_edge_hit_rect(card_rect: Rect, edge: SidebarEdge) -> Rect {
+    let x = match edge {
+        SidebarEdge::Left => card_rect.left(),
+        SidebarEdge::Right => card_rect.right(),
+    };
+    let corner_radius = 8.0;
+    Rect::from_min_max(
+        Pos2::new(
+            x - SIDEBAR_RESIZE_GRAB_RADIUS,
+            card_rect.top() + corner_radius,
+        ),
+        Pos2::new(
+            x + SIDEBAR_RESIZE_GRAB_RADIUS,
+            card_rect.bottom() - corner_radius,
+        ),
+    )
+}
+
+fn paint_sidebar_resize_edge(
+    ui: &Ui,
+    panel_id: Id,
+    card_rect: Rect,
+    edge: SidebarEdge,
+    dark: bool,
+) {
+    ui.ctx().data_mut(|data| {
+        data.insert_temp(panel_id.with("plotx_card_rect"), card_rect);
+    });
+    let Some(response) = ui.ctx().read_response(panel_id.with("__resize")) else {
+        return;
+    };
+    if !response.hovered() && !response.dragged() {
+        return;
+    }
+
+    let corner_radius = 8.0;
+    let straight_edge = sidebar_edge_hit_rect(card_rect, edge);
+    let hover_pointer = ui.ctx().pointer_hover_pos();
+    if !response.dragged() && !hover_pointer.is_some_and(|pointer| straight_edge.contains(pointer))
+    {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+        return;
+    }
+
+    let base_color = if dark {
+        Color32::from_gray(if response.dragged() { 112 } else { 88 })
+    } else {
+        Color32::from_gray(if response.dragged() { 145 } else { 174 })
+    };
+    let pointer = if response.dragged() {
+        response
+            .interact_pointer_pos()
+            .or_else(|| ui.ctx().pointer_interact_pos())
+    } else {
+        hover_pointer
+    };
+    let Some(pointer) = pointer else {
+        return;
+    };
+    let x = match edge {
+        SidebarEdge::Left => card_rect.left(),
+        SidebarEdge::Right => card_rect.right(),
+    };
+    let min_y = (card_rect.top() + corner_radius).max(pointer.y - SIDEBAR_HIGHLIGHT_RADIUS);
+    let max_y = (card_rect.bottom() - corner_radius).min(pointer.y + SIDEBAR_HIGHLIGHT_RADIUS);
+    if min_y >= max_y {
+        return;
+    }
+
+    let segments = ((max_y - min_y) / SIDEBAR_HIGHLIGHT_SAMPLE_STEP)
+        .ceil()
+        .max(1.0) as usize;
+    let mut mesh = Mesh::default();
+    mesh.reserve_vertices(2 * (segments + 1));
+    mesh.reserve_triangles(2 * segments);
+    for index in 0..=segments {
+        let y = egui::lerp(min_y..=max_y, index as f32 / segments as f32);
+        let alpha = sidebar_highlight_alpha((y - pointer.y).abs());
+        let color = base_color.linear_multiply(alpha);
+        let vertex = mesh.vertices.len() as u32;
+        mesh.colored_vertex(Pos2::new(x - 0.5, y), color);
+        mesh.colored_vertex(Pos2::new(x + 0.5, y), color);
+        if index > 0 {
+            mesh.add_triangle(vertex - 2, vertex - 1, vertex);
+            mesh.add_triangle(vertex, vertex - 1, vertex + 1);
+        }
+    }
+    ui.painter().add(mesh);
+}
+
+fn sidebar_highlight_alpha(distance: f32) -> f32 {
+    let t = (distance.abs() / SIDEBAR_HIGHLIGHT_RADIUS).clamp(0.0, 1.0);
+    1.0 - t * t * (3.0 - 2.0 * t)
 }
 
 /// Chrome layering: the Ribbon and sidebars sit as rounded cards on a slightly
@@ -491,6 +682,10 @@ fn flush_frame(dark: bool, inner_margin: egui::Margin) -> egui::Frame {
         .fill(workspace_fill(dark))
         .inner_margin(inner_margin)
 }
+
+#[cfg(test)]
+#[path = "sidebar_tests.rs"]
+mod sidebar_tests;
 
 #[cfg(test)]
 mod feedback_tests {
