@@ -7,6 +7,66 @@ use egui_phosphor::regular as icon;
 use plotx_core::settings::ThemeMode;
 use plotx_core::state::{SettingsCategory, SettingsDialog};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ChromeGeometry {
+    control: u8,
+    surface: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DesktopPlatform {
+    MacOs,
+    Windows,
+    Linux,
+}
+
+impl ChromeGeometry {
+    const fn for_platform(platform: DesktopPlatform) -> Self {
+        match platform {
+            DesktopPlatform::MacOs => Self {
+                control: 6,
+                surface: 10,
+            },
+            DesktopPlatform::Windows => Self {
+                control: 4,
+                surface: 8,
+            },
+            DesktopPlatform::Linux => Self {
+                control: 6,
+                surface: 10,
+            },
+        }
+    }
+
+    const fn current() -> Self {
+        if cfg!(target_os = "macos") {
+            Self::for_platform(DesktopPlatform::MacOs)
+        } else if cfg!(windows) {
+            Self::for_platform(DesktopPlatform::Windows)
+        } else {
+            Self::for_platform(DesktopPlatform::Linux)
+        }
+    }
+}
+
+pub(crate) fn surface_corner_radius() -> CornerRadius {
+    CornerRadius::same(ChromeGeometry::current().surface)
+}
+
+fn apply_chrome_geometry(style: &mut egui::Style, geometry: ChromeGeometry) {
+    let control = CornerRadius::same(geometry.control);
+    let widgets = &mut style.visuals.widgets;
+    widgets.noninteractive.corner_radius = control;
+    widgets.inactive.corner_radius = control;
+    widgets.hovered.corner_radius = control;
+    widgets.active.corner_radius = control;
+    widgets.open.corner_radius = control;
+
+    let surface = CornerRadius::same(geometry.surface);
+    style.visuals.window_corner_radius = surface;
+    style.visuals.menu_corner_radius = surface;
+}
+
 pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
     let pref = match mode {
         ThemeMode::System => egui::ThemePreference::System,
@@ -16,6 +76,7 @@ pub(crate) fn apply_chrome_theme(ctx: &egui::Context, mode: ThemeMode) {
     ctx.set_theme(pref);
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
         ctx.style_mut_of(theme, |style| {
+            apply_chrome_geometry(style, ChromeGeometry::current());
             // Disabled widgets keep the normal button fill and fade only via
             // `disabled_alpha`. Stock egui swaps in the near-panel
             // `noninteractive` fill, which makes light-theme buttons *brighten*
@@ -47,11 +108,17 @@ pub(super) fn rail_row(ui: &mut Ui, cat: SettingsCategory, selected: bool) -> Re
         visuals.text_color()
     };
     if selected {
-        ui.painter()
-            .rect_filled(rect, CornerRadius::same(6), visuals.selection.bg_fill);
+        ui.painter().rect_filled(
+            rect,
+            visuals.widgets.active.corner_radius,
+            visuals.selection.bg_fill,
+        );
     } else if resp.hovered() {
-        ui.painter()
-            .rect_filled(rect, CornerRadius::same(6), visuals.widgets.hovered.bg_fill);
+        ui.painter().rect_filled(
+            rect,
+            visuals.widgets.hovered.corner_radius,
+            visuals.widgets.hovered.bg_fill,
+        );
     }
     let cy = rect.center().y;
     let painter = ui.painter();
@@ -102,4 +169,63 @@ pub(super) fn footer(ui: &mut Ui, dialog: &SettingsDialog) -> (bool, bool) {
         });
     });
     (done, reset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_geometry_uses_the_desktop_radius_hierarchy() {
+        assert_eq!(
+            ChromeGeometry::for_platform(DesktopPlatform::MacOs),
+            ChromeGeometry {
+                control: 6,
+                surface: 10,
+            }
+        );
+        assert_eq!(
+            ChromeGeometry::for_platform(DesktopPlatform::Windows),
+            ChromeGeometry {
+                control: 4,
+                surface: 8,
+            }
+        );
+        assert_eq!(
+            ChromeGeometry::for_platform(DesktopPlatform::Linux),
+            ChromeGeometry {
+                control: 6,
+                surface: 10,
+            }
+        );
+    }
+
+    #[test]
+    fn every_widget_state_and_surface_receive_the_same_level_radius() {
+        for platform in [
+            DesktopPlatform::MacOs,
+            DesktopPlatform::Windows,
+            DesktopPlatform::Linux,
+        ] {
+            let geometry = ChromeGeometry::for_platform(platform);
+            for visuals in [egui::Visuals::light(), egui::Visuals::dark()] {
+                let mut style = egui::Style {
+                    visuals,
+                    ..Default::default()
+                };
+                apply_chrome_geometry(&mut style, geometry);
+                let control = CornerRadius::same(geometry.control);
+                let widgets = &style.visuals.widgets;
+                assert_eq!(widgets.noninteractive.corner_radius, control);
+                assert_eq!(widgets.inactive.corner_radius, control);
+                assert_eq!(widgets.hovered.corner_radius, control);
+                assert_eq!(widgets.active.corner_radius, control);
+                assert_eq!(widgets.open.corner_radius, control);
+
+                let surface = CornerRadius::same(geometry.surface);
+                assert_eq!(style.visuals.window_corner_radius, surface);
+                assert_eq!(style.visuals.menu_corner_radius, surface);
+            }
+        }
+    }
 }

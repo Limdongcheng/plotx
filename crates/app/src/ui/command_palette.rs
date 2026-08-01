@@ -415,11 +415,17 @@ fn row(ui: &mut Ui, item: &PaletteItem, selected: bool) -> Response {
     }
     let visuals = ui.visuals();
     if selected {
-        ui.painter()
-            .rect_filled(rect, 4.0, visuals.selection.bg_fill);
+        ui.painter().rect_filled(
+            rect,
+            visuals.widgets.active.corner_radius,
+            visuals.selection.bg_fill,
+        );
     } else if item.enabled && response.hovered() {
-        ui.painter()
-            .rect_filled(rect, 4.0, visuals.widgets.hovered.bg_fill);
+        ui.painter().rect_filled(
+            rect,
+            visuals.widgets.hovered.corner_radius,
+            visuals.widgets.hovered.bg_fill,
+        );
     }
     let color = if !item.enabled {
         visuals.weak_text_color()

@@ -473,7 +473,7 @@ fn card_frame(dark: bool, outer_margin: egui::Margin) -> egui::Frame {
     egui::Frame::new()
         .fill(fill)
         .stroke(Stroke::new(1.0_f32, stroke))
-        .corner_radius(8)
+        .corner_radius(settings_dialog::surface_corner_radius())
         .inner_margin(8)
         .outer_margin(outer_margin)
         .shadow(egui::epaint::Shadow {

@@ -186,7 +186,11 @@ fn mass_spectrum_preview(ui: &mut Ui, scan: &plotx_io::MassSpectrum) {
     let width = ui.available_width().max(80.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 96.0), egui::Sense::hover());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 3.0, ui.visuals().faint_bg_color);
+    painter.rect_filled(
+        rect,
+        ui.visuals().widgets.noninteractive.corner_radius,
+        ui.visuals().faint_bg_color,
+    );
     let Some((&min_mz, &max_mz)) = scan.mz.first().zip(scan.mz.last()) else {
         painter.text(
             rect.center(),

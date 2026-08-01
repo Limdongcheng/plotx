@@ -199,7 +199,11 @@ pub(super) fn collapsed_column(ui: &mut Ui, values: &[f64]) {
     } else {
         Color32::from_black_alpha(12)
     };
-    painter.rect_filled(rect, 3.0, grey);
+    painter.rect_filled(
+        rect,
+        ui.visuals().widgets.noninteractive.corner_radius,
+        grey,
+    );
     sparkline(painter, rect.shrink(8.0), values);
 }
 

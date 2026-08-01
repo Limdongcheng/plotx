@@ -78,7 +78,7 @@ pub(super) fn property_row(
     if highlighted {
         ui.painter().rect_stroke(
             response.rect.expand(2.0),
-            4.0,
+            ui.visuals().widgets.active.corner_radius,
             egui::Stroke::new(1.5_f32, ui.visuals().selection.bg_fill),
             egui::StrokeKind::Outside,
         );
@@ -122,7 +122,7 @@ pub(super) fn property_row_inline(
     if highlighted {
         ui.painter().rect_stroke(
             response.rect.expand(2.0),
-            4.0,
+            ui.visuals().widgets.active.corner_radius,
             egui::Stroke::new(1.5_f32, ui.visuals().selection.bg_fill),
             egui::StrokeKind::Outside,
         );
