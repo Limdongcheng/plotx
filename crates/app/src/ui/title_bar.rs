@@ -5,7 +5,7 @@
 
 use super::*;
 use egui::{
-    Align, FontId, Layout, PointerButton, Rect, StrokeKind, UiBuilder, ViewportCommand, pos2, vec2,
+    Align, Layout, PointerButton, Rect, StrokeKind, UiBuilder, ViewportCommand, pos2, vec2,
 };
 
 pub(super) const BAR_HEIGHT: f32 = 34.0;
@@ -60,7 +60,7 @@ pub(super) fn render(
     // the window controls.
     let galley = ui.painter().layout_no_wrap(
         super::project_window_title(app),
-        FontId::proportional(13.0),
+        crate::typography::headline_font(),
         ui.visuals().weak_text_color(),
     );
     let text_rect = Rect::from_center_size(bar_rect.center(), galley.size());

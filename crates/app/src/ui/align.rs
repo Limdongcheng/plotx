@@ -110,9 +110,9 @@ pub(crate) fn align_spectra_window(app: &mut PlotxApp, ctx: &egui::Context) {
                 .max_height(240.0)
                 .show(ui, |ui| {
                     egui::Grid::new("align_rows").striped(true).show(ui, |ui| {
-                        ui.strong("Dataset");
-                        ui.strong("Peak (ppm)");
-                        ui.strong("Shift (ppm)");
+                        ui.label(crate::typography::headline("Dataset"));
+                        ui.label(crate::typography::headline("Peak (ppm)"));
+                        ui.label(crate::typography::headline("Shift (ppm)"));
                         ui.end_row();
                         for row in &plan.rows {
                             let name = app

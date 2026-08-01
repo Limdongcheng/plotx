@@ -9,7 +9,7 @@ fn renders_safely_during_active_canvas_transition() {
     assert!(app.doc.canvases.is_empty());
     assert!(app.session.ui.selection.objects().is_empty());
 
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| render(&mut app, ui));
 }
 
@@ -69,7 +69,7 @@ fn empty_selection_discards_a_stale_layout_jump() {
     let (mut app, _) = crate::ui::properties::fixture::contour_page(1);
     app.clear_selection();
     app.session.ui.requested_inspector_section = Some("inspector.layout".to_owned());
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| render(&mut app, ui));
     assert!(app.session.ui.requested_inspector_section.is_none());
 }

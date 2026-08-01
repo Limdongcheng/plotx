@@ -26,7 +26,7 @@ pub(super) fn column_names(app: &PlotxApp, di: usize) -> Vec<ColumnChoice> {
 /// compact combo keeps the whole workflow — roles, options, and saved results —
 /// visible in the narrow card instead of a tall list of choices.
 pub(super) fn question_picker(draft: &mut StatDraft, ui: &mut Ui) {
-    ui.strong("What do you want to find out?");
+    ui.label(crate::typography::headline("What do you want to find out?"));
     egui::ComboBox::from_id_salt("stat_question")
         .width(ui.available_width())
         .selected_text(draft.question.prompt())

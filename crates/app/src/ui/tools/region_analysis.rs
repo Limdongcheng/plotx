@@ -8,7 +8,7 @@ use plotx_core::state::{
 use super::task_card::{self, TaskCardGeometry};
 
 pub(super) fn region_analysis_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> bool {
-    ui.strong("Region analysis");
+    ui.label(crate::typography::headline("Region analysis"));
     let count = app
         .doc
         .datasets
@@ -83,7 +83,7 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
                     .region_analysis()
                     .map_or(0, |state| state.regions.len());
                 ui.horizontal(|ui| {
-                    ui.strong("Regions");
+                    ui.label(crate::typography::headline("Regions"));
                     let state = if app.session.tool == Tool::Regions {
                         if count == 0 {
                             "Drawing".to_owned()
@@ -512,7 +512,7 @@ fn fit_mirror(app: &mut PlotxApp, di: usize, lines: &[String], ui: &mut Ui) {
     }
 
     ui.separator();
-    ui.strong("Fit results");
+    ui.label(crate::typography::headline("Fit results"));
     for line in lines {
         ui.small(line);
     }

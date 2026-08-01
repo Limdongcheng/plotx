@@ -1,4 +1,4 @@
-use egui::{Color32, CornerRadius, FontId, Id, Pos2, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, CornerRadius, Id, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 use plotx_core::state::PrimaryView;
 
 const PILL_SPRING_RESPONSE: f32 = 0.34;
@@ -141,7 +141,7 @@ pub fn segmented(ui: &mut Ui, current: &mut PrimaryView) -> bool {
 
         let galley = painter.layout_no_wrap(
             view.label().to_owned(),
-            FontId::proportional(13.0),
+            crate::typography::headline_font(),
             lerp_color(text_muted, text_strong, label_t),
         );
         painter.galley(

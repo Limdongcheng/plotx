@@ -169,7 +169,7 @@ fn analysis_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> bool {
     integrate_group(app, di, ui);
 
     ui.separator();
-    ui.strong("Arithmetic");
+    ui.label(crate::typography::headline("Arithmetic"));
     if ui
         .button("Spectrum arithmetic…")
         .on_hover_text("Add or subtract spectra (A ± k·B) or apply a constant; solvent subtraction and difference spectra.")
@@ -319,7 +319,7 @@ pub(super) fn integrate_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
         return;
     }
     ui.separator();
-    ui.strong("Integrate");
+    ui.label(crate::typography::headline("Integrate"));
     let drawing = app.session.tool == Tool::Integrate;
     if ui
         .selectable_label(drawing, "∫  Draw integrals")
@@ -399,7 +399,7 @@ fn integrate_2d_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
     use plotx_core::BaselineMode;
 
     ui.separator();
-    ui.strong("2D Integrals");
+    ui.label(crate::typography::headline("2D Integrals"));
     let drawing = app.session.tool == Tool::Integrate;
     if ui
         .selectable_label(drawing, "∫  Draw rectangles")

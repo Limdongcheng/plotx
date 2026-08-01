@@ -521,7 +521,10 @@ pub(super) fn handle_file_drop(app: &mut PlotxApp, ctx: &egui::Context) {
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "Drop a PlotX project, table, Origin project, data file, data folder, or archive",
-            egui::FontId::proportional(24.0),
+            egui::FontId::new(
+                crate::typography::TITLE_1_PT,
+                egui::FontFamily::Proportional,
+            ),
             Color32::WHITE,
         );
     }

@@ -180,7 +180,7 @@ pub(super) fn nmr_sheet(ui: &mut Ui, n: &plotx_core::state::NmrDataset) {
             for (header, values) in &columns {
                 ui.vertical(|ui| {
                     ui.set_width(140.0);
-                    ui.strong(header);
+                    ui.label(crate::typography::headline(header));
                     ui.weak(format!("{len} values (collapsed)"));
                     collapsed_column(ui, values);
                 });

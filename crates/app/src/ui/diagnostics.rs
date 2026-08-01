@@ -47,17 +47,21 @@ pub(super) fn diagnostic_history_window(app: &mut PlotxApp, ctx: &egui::Context)
                 any = true;
                 ui.group(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.strong(format!("#{} {}", operation.id, operation.kind.as_str()));
+                        ui.label(crate::typography::headline(format!(
+                            "#{} {}",
+                            operation.id,
+                            operation.kind.as_str()
+                        )));
                         ui.label(operation.outcome.as_str());
                     });
                     ui.label(&operation.summary);
                     for diagnostic in &operation.diagnostics {
                         ui.horizontal_wrapped(|ui| {
-                            ui.strong(format!(
+                            ui.label(crate::typography::headline(format!(
                                 "{} {}",
                                 diagnostic.severity.as_str(),
                                 diagnostic.code.as_str()
-                            ));
+                            )));
                             ui.label(&diagnostic.message);
                         });
                         if let Some(source) = &diagnostic.source {

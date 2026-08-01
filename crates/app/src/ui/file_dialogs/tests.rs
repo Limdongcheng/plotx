@@ -22,7 +22,7 @@ fn table_import_preview_uses_unique_scroll_area_ids() {
         "time,value\n0,1\n",
         DelimitedTableSource::Clipboard,
     );
-    let ctx = egui::Context::default();
+    let ctx = crate::typography::test_context();
 
     let output = ctx.run_ui(egui::RawInput::default(), |ui| {
         table_import_preview_window(&mut app, ui.ctx());

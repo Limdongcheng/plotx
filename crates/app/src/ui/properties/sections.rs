@@ -467,7 +467,7 @@ fn render_section(
         ui.separator();
         let response = ui
             .horizontal(|ui| {
-                ui.strong(title);
+                ui.label(crate::typography::headline(title));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.weak(status_noun.counted(applicable.len()));
                 });

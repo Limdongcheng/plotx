@@ -102,7 +102,7 @@ pub(super) fn chart_gallery(app: &mut PlotxApp, ci: usize, object: ObjectId, ui:
     let encodings = visual_encodings(&field.capabilities);
     if encodings.len() > 1 {
         ui.separator();
-        ui.strong("Visual encoding");
+        ui.label(crate::typography::headline("Visual encoding"));
         ui.horizontal_wrapped(|ui| {
             for descriptor in encodings {
                 let selected = matches!(

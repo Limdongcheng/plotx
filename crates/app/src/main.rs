@@ -7,6 +7,7 @@ mod fonts;
 mod observability;
 mod scale;
 mod shot;
+mod typography;
 mod ui;
 
 use plotx_core::state::PlotxApp;
@@ -645,6 +646,7 @@ fn main() -> eframe::Result<()> {
             #[cfg(windows)]
             apply_windows_frame_polish(cc);
             cc.egui_ctx.set_fonts(fonts::definitions());
+            typography::apply(&cc.egui_ctx);
             // The UI-scale commands own Ctrl+= / Ctrl+- / Ctrl+0 so the change
             // persists per monitor; egui's built-in handler would apply an
             // unrecorded zoom on top.

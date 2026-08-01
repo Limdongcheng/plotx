@@ -182,11 +182,11 @@ fn draw_precheck(ui: &mut Ui, report: &PrecheckReport) {
     let worst = report.worst();
     ui.horizontal(|ui| {
         status_dot(ui, worst);
-        ui.strong(match worst {
+        ui.label(crate::typography::headline(match worst {
             ComplianceStatus::Pass => "Compliance: passes",
             ComplianceStatus::Warn => "Compliance: review",
             ComplianceStatus::Fail => "Compliance: violations (export allowed)",
-        });
+        }));
     });
     for item in &report.items {
         ui.horizontal(|ui| {

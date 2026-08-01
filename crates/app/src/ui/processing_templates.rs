@@ -221,7 +221,7 @@ fn browse_window(
                         Err(error) => Err(error.clone()),
                     };
                     ui.horizontal_wrapped(|ui| {
-                        ui.strong(&entry.name);
+                        ui.label(crate::typography::headline(&entry.name));
                         match &compat {
                             Ok(()) => {
                                 ui.colored_label(

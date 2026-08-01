@@ -27,6 +27,7 @@ egui.workspace = true
 eframe.workspace = true
 egui_extras.workspace = true
 egui-phosphor.workspace = true
+fontdb.workspace = true
 image.workspace = true
 log.workspace = true
 num-complex.workspace = true
@@ -42,7 +43,6 @@ windows-sys.workspace = true
 libc.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-fontdb.workspace = true
 muda.workspace = true
 
 [target.'cfg(windows)'.build-dependencies]
