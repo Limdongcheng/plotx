@@ -23,6 +23,22 @@ const RECOVERY_RETRY_INTERVAL: Duration = Duration::from_secs(15);
 /// pixel size it is created at before the UI scale is known.
 pub(crate) const DEFAULT_WINDOW_PT: [f32; 2] = [1100.0, 700.0];
 
+fn desired_maximum_frame_latency() -> Option<u32> {
+    // eframe synchronizes Metal presentation with CoreAnimation transactions
+    // during a live resize. Keep wgpu's default triple buffering on macOS so
+    // that transaction cannot exhaust a forced two-drawable surface.
+    #[cfg(target_os = "macos")]
+    {
+        None
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Keep only one rendered frame queued so direct manipulation reaches
+        // the display with the least presentation latency.
+        Some(1)
+    }
+}
+
 #[cfg(target_os = "macos")]
 const APPLICATION_ICON_PNG: &[u8] = include_bytes!("../../../assets/icon-256-macos.png");
 #[cfg(not(target_os = "macos"))]
@@ -619,9 +635,7 @@ fn main() -> eframe::Result<()> {
         viewport = viewport.with_decorations(false);
     }
     let mut wgpu_options = eframe::egui_wgpu::WgpuConfiguration {
-        // Keep only one rendered frame queued so direct manipulation reaches the
-        // display with the least presentation latency.
-        desired_maximum_frame_latency: Some(1),
+        desired_maximum_frame_latency: desired_maximum_frame_latency(),
         ..Default::default()
     };
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut wgpu_options.wgpu_setup {

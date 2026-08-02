@@ -14,6 +14,15 @@ fn embedded_application_icons_are_256_rgba() {
 }
 
 #[test]
+fn frame_latency_matches_platform_presentation_requirements() {
+    #[cfg(target_os = "macos")]
+    assert_eq!(desired_maximum_frame_latency(), None);
+
+    #[cfg(not(target_os = "macos"))]
+    assert_eq!(desired_maximum_frame_latency(), Some(1));
+}
+
+#[test]
 fn macos_application_icon_has_dock_padding() {
     let icon = image::load_from_memory(MACOS_ICON_PNG)
         .expect("decode macOS icon")
