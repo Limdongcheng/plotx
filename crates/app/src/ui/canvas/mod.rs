@@ -138,6 +138,7 @@ pub fn render_central(app: &mut PlotxApp, ui: &mut Ui) {
     let pointer_owned = app.session.ui.interaction.is_active()
         || (ui.rect_contains_pointer(rect) && pointer_hits_canvas_layer);
 
+    sync_macos_trackpad_gesture(ui.ctx(), &ui.input(|i| i.events.clone()), pointer_owned);
     let view_consumed = pointer_owned && handle_navigation(app, ci, rect, ui);
 
     // A live non-frame gesture cannot be interrupted by a frame switch.

@@ -43,12 +43,14 @@ the cursor, or on the board when the cursor is over empty space.
 
 | Input | Action |
 | --- | --- |
-| Scroll over a plot body | Zoom the x axis of a 1D plot; both axes of a 2D plot |
+| Scroll wheel over a plot body | Zoom the x axis of a 1D plot; both axes of a 2D plot |
+| Two-finger swipe on a macOS trackpad | Pan the plot under the pointer; pan the board over empty space |
 | Pinch over a plot | Zoom both axes, whatever the plot draws |
-| `Alt` + scroll over a plot body | Change what the plot shows: y intensity on a 1D plot, the lowest contour level, or a heatmap's colour range |
+| `Alt` + scroll wheel over a plot body | Change what the plot shows: y intensity on a 1D plot, the lowest contour level, or a heatmap's colour range |
 | `Alt` + drag over a plot body | Rubber-band a box to zoom into, in any tool |
-| Scroll over an axis strip | Zoom that axis only |
-| `Ctrl` + scroll / pinch | Zoom the board instead of the plot |
+| Scroll wheel over an axis strip | Zoom that axis only |
+| `Ctrl` + scroll wheel / pinch | Zoom the board instead of the plot |
+| `Ctrl` + two-finger swipe on a macOS trackpad | Pan the board instead of the plot |
 | Middle-drag or `Space` + drag | Pan the plot (the board when over empty space or holding `Ctrl`) |
 | Drag on an axis strip | Select a range on that axis to zoom into |
 | Double-click a plot | Reset both axes to full range |
@@ -58,10 +60,10 @@ the cursor, or on the board when the cursor is over empty space.
 
 Hovering a plot body or an axis strip outlines the area the wheel will act on
 and names the action in its top-left corner, including which setting `Alt` +
-scroll would change and on how many series. Where one plot draws two things
-with display settings of their own — contours over a heatmap — `Alt` + scroll
-does nothing rather than guessing which you meant; change the layer you want
-from the Object inspector.
+scroll wheel would change and on how many series. Where one plot draws two
+things with display settings of their own — contours over a heatmap — `Alt` +
+scroll wheel does nothing rather than guessing which you meant; change the
+layer you want from the Object inspector.
 
 ## Selection and editing
 
