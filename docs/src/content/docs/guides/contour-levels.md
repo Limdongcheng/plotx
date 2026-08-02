@@ -69,18 +69,17 @@ level by one rung of that plot's own **Level ratio**, so one press adds or
 removes roughly one contour ring whatever the intensity scale: the same gesture
 works on a spectrum whose peak is 100 and one whose peak is a billion.
 
-Hovering the plot body and holding `Alt` while you scroll does the same thing
-without the keyboard. One wheel notch moves one rung, and the finer motion of a
-trackpad accumulates into the same rungs. The contours already on screen stay
-there while the new ones are computed, so sweeping through several rungs never
-leaves you reading a half-drawn ladder.
+Hovering the plot body and holding `Alt` while you roll the mouse wheel does the
+same thing without the keyboard. One wheel notch moves one rung. The contours
+already on screen stay there while the new ones are computed, so sweeping
+through several rungs never leaves you reading a half-drawn ladder.
 
 A hint in the top-left corner of the hovered plot names the setting `Alt` +
-scroll will change and how many series it will change — *Alt+scroll: Lowest
-level (3 series)*. If the plot also draws something else with a display setting
-of its own, such as a heatmap under the contours, `Alt` + scroll does nothing
-rather than guessing which layer you meant; change the layer you want from the
-Object inspector.
+scroll wheel will change and how many series it will change — *Alt+scroll:
+Lowest level (3 series)*. If the plot also draws something else with a display
+setting of its own, such as a heatmap under the contours, `Alt` + scroll wheel
+does nothing rather than guessing which layer you meant; change the layer you
+want from the Object inspector.
 
 Whenever the keys apply, the current lowest level is shown in the top-right
 corner of the plot, resolved the same way as in the panel — `5 × σ = 1.2e4`. A
@@ -207,5 +206,5 @@ Four routes reach a contour setting, and they all end at the same control:
 - **Contour** in the **Style** group of the Ribbon's **Figure** tab jumps to the
   same place.
 - Right-click the plot and choose **Contour settings…**.
-- `+` and `-`, or `Alt` + scroll over the plot body, change the lowest level
+- `+` and `-`, or `Alt` + scroll wheel over the plot body, change the lowest level
   directly on the plot.

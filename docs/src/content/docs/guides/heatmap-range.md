@@ -37,11 +37,11 @@ say so instead of showing a number.
 
 ## From the plot
 
-Hover the plot body and hold `Alt` while you scroll to change **Colour range**
-without leaving the canvas. Each wheel notch narrows or widens the span by
-about 20% around its current centre, so the gesture behaves the same on a field
-whose values run to 100 and one whose values run to a billion. Scroll up to
-tighten the range and bring out weak features, down to widen it.
+Hover the plot body and hold `Alt` while you roll the mouse wheel to change
+**Colour range** without leaving the canvas. Each wheel notch narrows or widens
+the span by about 20% around its current centre, so the gesture behaves the same
+on a field whose values run to 100 and one whose values run to a billion. Roll
+the wheel up to tighten the range and bring out weak features, down to widen it.
 
 A hint in the top-left corner of the hovered plot names what the gesture will
 change and how many series it will change before you commit to it. A pinch
@@ -49,7 +49,7 @@ always zooms the axes instead, so you can navigate the plot without disturbing
 its colours.
 
 If the same plot draws contours over the heatmap, both layers have a display
-setting `Alt` + scroll could plausibly mean. PlotX does nothing rather than
+setting `Alt` + scroll wheel could plausibly mean. PlotX does nothing rather than
 picking one by drawing order; use the **Heatmap** or **Contour** section to
 change the layer you meant.
 
@@ -62,4 +62,4 @@ change the layer you meant.
 - **Heatmap** in the **Style** group of the Ribbon's **Figure** tab jumps to
   the same place.
 - Right-click the plot and choose **Heatmap settings…**.
-- `Alt` + scroll over the plot body changes **Colour range** directly.
+- `Alt` + scroll wheel over the plot body changes **Colour range** directly.

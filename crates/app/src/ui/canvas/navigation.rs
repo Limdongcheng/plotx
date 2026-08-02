@@ -1,15 +1,49 @@
 use super::*;
 
+#[path = "navigation_input.rs"]
+mod input;
+pub(crate) use input::sync_macos_trackpad_gesture;
+use input::*;
+
 /// The ambient navigation layer: pan and zoom, available under every tool,
 /// acting on the plot panel under the cursor (its data viewport) or on the board
 /// when the cursor is over empty space. Holding Cmd/Ctrl promotes navigation to
 /// the board even over a panel. Returns `true` when it consumes the gesture.
 pub(crate) fn handle_navigation(app: &mut PlotxApp, ci: usize, rect: egui::Rect, ui: &Ui) -> bool {
-    let (hover, scroll, zoom_delta, delta, dbl) = ui.input(|i| {
+    let events = ui.input(|i| i.events.clone());
+    let trackpad_gesture = macos_trackpad_gesture(ui.ctx(), &events, true);
+    let (hover, navigation_input, trackpad_board_target, delta, dbl) = ui.input(|i| {
+        let native_pinch_delta = i
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                egui::Event::Zoom(delta) => Some(*delta),
+                _ => None,
+            })
+            .reduce(|combined, delta| combined * delta);
+        // An active Point gesture started with a touch phase, unlike Point-unit
+        // high-resolution mouse wheels. Read its raw two-axis displacement so
+        // modifier changes cannot make egui reinterpret later frames as zoom.
+        let trackpad_pan = trackpad_gesture.active && native_pinch_delta.is_none();
+        let scroll_delta = if trackpad_pan {
+            macos_precise_scroll_delta(&i.events)
+        } else {
+            i.smooth_scroll_delta
+        };
+        let zoom_delta = if trackpad_pan {
+            1.0
+        } else {
+            native_pinch_delta.unwrap_or_else(|| i.zoom_delta())
+        };
+        let navigation_input = if trackpad_gesture.suppressed {
+            NavigationInput::None
+        } else {
+            classify_navigation_input(zoom_delta, scroll_delta, trackpad_pan)
+        };
         (
             i.pointer.hover_pos(),
-            i.smooth_scroll_delta,
-            i.zoom_delta(),
+            navigation_input,
+            trackpad_gesture.board_target,
             i.pointer.delta(),
             i.pointer
                 .button_double_clicked(egui::PointerButton::Primary),
@@ -41,6 +75,10 @@ pub(crate) fn handle_navigation(app: &mut PlotxApp, ci: usize, rect: egui::Rect,
         )
     });
     let typing = ui.ctx().egui_wants_keyboard_input();
+    if app.session.ui.wheel_zoom.is_some() {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(200));
+    }
 
     // A double-click is reported on the second release. By then a zero-distance
     // box or axis zoom has already started on the second press, so handle the
@@ -106,6 +144,30 @@ pub(crate) fn handle_navigation(app: &mut PlotxApp, ci: usize, rect: egui::Rect,
         return panning;
     };
 
+    let trackpad_target = if trackpad_gesture.active {
+        let state_id = egui::Id::new("plotx.trackpad_navigation_target");
+        ui.ctx().data_mut(|data| {
+            let mut target = data.get_temp::<TrackpadNavigationTarget>(state_id);
+            if trackpad_gesture.started || target.is_none() {
+                target = Some(if trackpad_board_target {
+                    TrackpadNavigationTarget::Board
+                } else if let Some((object, _, _)) = plot_under_cursor(app, ci, rect, p) {
+                    TrackpadNavigationTarget::Plot { canvas: ci, object }
+                } else {
+                    TrackpadNavigationTarget::Board
+                });
+            }
+            if trackpad_gesture.finished {
+                data.remove_temp::<TrackpadNavigationTarget>(state_id);
+            } else if let Some(target) = target {
+                data.insert_temp(state_id, target);
+            }
+            target
+        })
+    } else {
+        None
+    };
+
     let data_target = if command {
         None
     } else {
@@ -134,45 +196,83 @@ pub(crate) fn handle_navigation(app: &mut PlotxApp, ci: usize, rect: egui::Rect,
         return true;
     }
 
-    let pinch = (zoom_delta - 1.0).abs() > 0.001;
-    let wheel = scroll.y.abs() > 0.0;
-    if !typing && (pinch || wheel) {
-        let consumed = match data_target {
-            Some((id, outer, plot)) => {
-                if pinch {
-                    app.finish_pending_wheel_property(now, true);
-                    let scale = (1.0 / f64::from(zoom_delta)).clamp(0.2, 5.0);
-                    app.session.board_fit = None;
-                    zoom_plot_viewport(app, ci, id, outer, plot, p, scale, (true, true), now, ui);
-                    true
-                } else if alt && hit_zone(p, outer, plot) == HitZone::Plot {
-                    app.finish_pending_wheel_zoom(now, true);
-                    adjust_plot_display(app, ci, id, plot, p, scroll.y, now, ui)
-                } else {
-                    app.finish_pending_wheel_property(now, true);
-                    let axes = wheel_zoom_axes(app, ci, id, hit_zone(p, outer, plot));
-                    let Some(axes) = axes else {
-                        return false;
-                    };
-                    let scale = f64::from((-scroll.y * WHEEL_ZOOM_SPEED).exp()).clamp(0.2, 5.0);
-                    app.session.board_fit = None;
-                    zoom_plot_viewport(app, ci, id, outer, plot, p, scale, axes, now, ui);
-                    true
+    if !typing {
+        match navigation_input {
+            NavigationInput::TrackpadPan(delta) => {
+                match trackpad_target {
+                    Some(TrackpadNavigationTarget::Plot { canvas, object }) => {
+                        app.finish_pending_wheel_property(now, true);
+                        if let Some(plot) = plot_inner_rect(app, canvas, object, rect) {
+                            pan_plot_viewport(app, canvas, object, plot, delta, now);
+                        }
+                        ui.ctx()
+                            .request_repaint_after(std::time::Duration::from_millis(200));
+                    }
+                    Some(TrackpadNavigationTarget::Board) | None => {
+                        pan_board_view(app, delta);
+                        ui.ctx().request_repaint();
+                    }
                 }
+                return true;
             }
-            None => {
-                let factor = if pinch {
-                    zoom_delta
-                } else {
-                    (scroll.y * WHEEL_ZOOM_SPEED).exp()
+            NavigationInput::Pinch(zoom_delta) => {
+                match data_target {
+                    Some((id, outer, plot)) => {
+                        app.finish_pending_wheel_property(now, true);
+                        let scale = (1.0 / f64::from(zoom_delta)).clamp(0.2, 5.0);
+                        app.session.board_fit = None;
+                        zoom_plot_viewport(
+                            app,
+                            ci,
+                            id,
+                            outer,
+                            plot,
+                            p,
+                            scale,
+                            (true, true),
+                            now,
+                            ui,
+                        );
+                    }
+                    None => {
+                        app.session.board_fit = None;
+                        zoom_board_view(app, rect, p, zoom_delta);
+                        ui.ctx().request_repaint();
+                    }
+                }
+                return true;
+            }
+            NavigationInput::WheelZoom(amount) => {
+                let consumed = match data_target {
+                    Some((id, outer, plot)) => {
+                        if alt && hit_zone(p, outer, plot) == HitZone::Plot {
+                            app.finish_pending_wheel_zoom(now, true);
+                            adjust_plot_display(app, ci, id, plot, p, amount, now, ui)
+                        } else {
+                            app.finish_pending_wheel_property(now, true);
+                            let Some(axes) = wheel_zoom_axes(app, ci, id, hit_zone(p, outer, plot))
+                            else {
+                                return false;
+                            };
+                            let scale =
+                                f64::from((-amount * WHEEL_ZOOM_SPEED).exp()).clamp(0.2, 5.0);
+                            app.session.board_fit = None;
+                            zoom_plot_viewport(app, ci, id, outer, plot, p, scale, axes, now, ui);
+                            true
+                        }
+                    }
+                    None => {
+                        let factor = (amount * WHEEL_ZOOM_SPEED).exp();
+                        app.session.board_fit = None;
+                        zoom_board_view(app, rect, p, factor);
+                        ui.ctx().request_repaint();
+                        true
+                    }
                 };
-                app.session.board_fit = None;
-                zoom_board_view(app, rect, p, factor);
-                ui.ctx().request_repaint();
-                true
+                return consumed;
             }
-        };
-        return consumed;
+            NavigationInput::None => {}
+        }
     }
 
     if !typing
@@ -219,16 +319,20 @@ pub(crate) fn handle_navigation(app: &mut PlotxApp, ci: usize, rect: egui::Rect,
             return true;
         }
         if delta != Vec2::ZERO {
-            app.session.board_fit = None;
-            app.session.board.auto_fit = false;
-            app.session.board.pan[0] += delta.x;
-            app.session.board.pan[1] += delta.y;
+            pan_board_view(app, delta);
         }
         ui.ctx().request_repaint();
         return true;
     }
 
     false
+}
+
+pub(crate) fn pan_board_view(app: &mut PlotxApp, delta: Vec2) {
+    app.session.board_fit = None;
+    app.session.board.auto_fit = false;
+    app.session.board.pan[0] += delta.x;
+    app.session.board.pan[1] += delta.y;
 }
 
 pub(crate) fn zoom_board_view(app: &mut PlotxApp, rect: egui::Rect, anchor: Pos2, factor: f32) {
@@ -276,6 +380,61 @@ pub(crate) fn apply_plot_pan(
     plot_object.viewport.auto_y = false;
     plot_object.apply_viewport();
     app.mark_document_dirty();
+}
+
+fn update_pending_viewport_edit(
+    app: &mut PlotxApp,
+    ci: usize,
+    object_id: ObjectId,
+    now: f64,
+) -> bool {
+    let targets_another_plot = app
+        .session
+        .ui
+        .wheel_zoom
+        .as_ref()
+        .is_some_and(|pending| pending.canvas != ci || pending.object != object_id);
+    if targets_another_plot {
+        app.finish_pending_wheel_zoom(now, true);
+    }
+
+    let Some(before) = app
+        .doc
+        .canvases
+        .get(ci)
+        .and_then(|canvas| canvas.object(object_id))
+        .and_then(|object| object.plot())
+        .map(|plot_object| plot_object.viewport.clone())
+    else {
+        return false;
+    };
+    if app.session.ui.wheel_zoom.is_none() {
+        app.session.ui.wheel_zoom = Some(PendingViewportEdit {
+            canvas: ci,
+            object: object_id,
+            before,
+            last_input_time: now,
+        });
+    }
+    if let Some(pending) = &mut app.session.ui.wheel_zoom {
+        pending.last_input_time = now;
+    }
+    true
+}
+
+pub(crate) fn pan_plot_viewport(
+    app: &mut PlotxApp,
+    ci: usize,
+    object_id: ObjectId,
+    plot: PlotRect,
+    delta: Vec2,
+    now: f64,
+) {
+    if !update_pending_viewport_edit(app, ci, object_id, now) {
+        return;
+    }
+    app.session.board_fit = None;
+    apply_plot_pan(app, ci, object_id, plot, delta);
 }
 
 pub(crate) fn commit_data_pan(app: &mut PlotxApp) {
@@ -611,35 +770,16 @@ pub(crate) fn zoom_plot_viewport(
         return;
     }
 
-    if app
-        .session
-        .ui
-        .wheel_zoom
-        .as_ref()
-        .map(|pending| pending.canvas != ci || pending.object != object_id)
-        .unwrap_or(false)
-    {
-        app.finish_pending_wheel_zoom(now, true);
-    }
-    if app.session.ui.wheel_zoom.is_none() {
-        app.session.ui.wheel_zoom = Some(PendingViewportEdit {
-            canvas: ci,
-            object: object_id,
-            before: app.doc.canvases[ci]
-                .object(object_id)
-                .and_then(|object| object.plot())
-                .unwrap()
-                .viewport
-                .clone(),
-            last_input_time: now,
-        });
-    }
-    if let Some(pending) = &mut app.session.ui.wheel_zoom {
-        pending.last_input_time = now;
+    if !update_pending_viewport_edit(app, ci, object_id, now) {
+        return;
     }
 
-    let object = app.doc.canvases[ci].object_mut(object_id).unwrap();
-    let plot_object = object.plot_mut().unwrap();
+    let Some(plot_object) = app.doc.canvases[ci]
+        .object_mut(object_id)
+        .and_then(|object| object.plot_mut())
+    else {
+        return;
+    };
     let fig = plot_object.figure().clone();
     if zoom_x {
         let anchor = screen_to_x(p.x, plot, fig.x.min, fig.x.span(), fig.x.reversed);
