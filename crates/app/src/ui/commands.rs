@@ -13,6 +13,8 @@ pub use super::command_exec::execute;
 mod identity;
 use identity::command_identity;
 pub(crate) use identity::recent_entry_label;
+mod ribbon;
+use ribbon::ribbon_placement;
 
 /// The published user manual; opened by `HelpManual` and linked from About.
 pub(crate) const MANUAL_URL: &str = "https://docs.plotx.nmrtist.space/";
@@ -370,7 +372,8 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
                 .is_some_and(|nmr| nmr.output_domain() == plotx_io::Domain::Time)
         })
     };
-    let has_frequency_analysis_trace = || has_trace() && !is_time_nmr();
+    let has_selectable_analysis_trace = || has_trace() && !is_time_nmr();
+    let has_generic_peak_fit_trace = || has_trace() && (is_frequency_nmr() || is_table());
     let range = || active_dataset.and_then(|di| app.analysis_range_for(di));
 
     let is_series = || dataset().is_some_and(Dataset::supports_region_analysis);
@@ -477,7 +480,7 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
             "Select an LC–MS dataset before extracting a mass spectrum.",
         ),
         CommandId::SelectRange => requires(
-            has_frequency_analysis_trace()
+            has_selectable_analysis_trace()
                 || dataset().is_some_and(|dataset| {
                     dataset.tool_groups().contains(&ToolGroup::MassSpectrometry)
                 }),
@@ -512,15 +515,15 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
             "Select a plotted 1D spectrum or table column before detecting peaks.",
         ),
         CommandId::PeakList => requires(
-            has_frequency_analysis_trace(),
+            has_generic_peak_fit_trace(),
             "Plot frequency-domain or tabular 1D data before opening the peak list.",
         ),
         CommandId::LineFit => requires(
-            has_frequency_analysis_trace(),
+            has_generic_peak_fit_trace(),
             "Plot frequency-domain or tabular 1D data before fitting peaks.",
         ),
         CommandId::RunPeakFit => requires(
-            has_frequency_analysis_trace(),
+            has_generic_peak_fit_trace(),
             "Plot frequency-domain or tabular 1D data before running Peak Fit.",
         )
         .and_then(|()| {
@@ -686,88 +689,6 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
     }
 }
 
-fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
-    use Applicability::{Always, Homonuclear2dOnly, SeriesOnly, TableOnly};
-    use WorkflowTab::{Analyze, Arrange, Data, Figure, Process, View};
-    let (tab, group, priority, applicability) = match id {
-        CommandId::Tool(Tool::BrowseZoom) | CommandId::ZoomToFit | CommandId::ZoomToSelection => {
-            (View, "Navigate", 0, Always)
-        }
-        CommandId::TogglePrimarySidebar
-        | CommandId::ToggleSecondarySidebar
-        | CommandId::ToggleGrid
-        | CommandId::Present
-        | CommandId::Preferences => (View, "Display", 1, Always),
-        CommandId::OpenFile
-        | CommandId::ImportTable
-        | CommandId::OpenFolder
-        | CommandId::PasteTable => (Data, "Import", 0, Always),
-        CommandId::NewTable | CommandId::StackData => (Data, "Build", 1, Always),
-        CommandId::ExportData => (Data, "Export", 0, Always),
-        CommandId::Tool(Tool::Peaks) | CommandId::DetectPeaks | CommandId::PeakList => {
-            (Analyze, "Peaks", 1, Always)
-        }
-        CommandId::Tool(Tool::Symmetry) => (Analyze, "Review", 1, Homonuclear2dOnly),
-        CommandId::Tool(Tool::ManualPhase) => (Process, "Correct", 0, Always),
-        CommandId::SpectrumArithmetic | CommandId::AlignSpectra => {
-            (Process, "Transform", 1, Always)
-        }
-        CommandId::ApplyProcessingTemplate | CommandId::SaveProcessingTemplate => {
-            (Process, "Recipes", 2, Always)
-        }
-        CommandId::SelectRange | CommandId::ClearRange => (Analyze, "Range", 0, Always),
-        CommandId::ExtractMassSpectrum => (
-            Analyze,
-            "Extract",
-            0,
-            Applicability::ToolGroup(ToolGroup::MassSpectrometry),
-        ),
-        CommandId::Regions => (Analyze, "Regions", 0, SeriesOnly),
-        CommandId::SeriesTable => (Analyze, "Regions", 0, SeriesOnly),
-        CommandId::LineFit | CommandId::RunPeakFit => (Analyze, "Peak Fit", 0, Always),
-        CommandId::CurveFit | CommandId::RunCurveFit => (Analyze, "Curve Fit", 0, TableOnly),
-        CommandId::Statistics => (Analyze, "Statistics", 0, TableOnly),
-        CommandId::Integrate | CommandId::Multiplets => (Analyze, "Interpret", 1, Always),
-        CommandId::NewCanvas(_) => (Figure, "Create", 0, Always),
-        CommandId::ChartType => (Figure, "Chart", 0, TableOnly),
-        CommandId::ApplyTheme(_) | CommandId::FigureTypography | CommandId::CanvasSettings => {
-            (Figure, "Style", 1, Always)
-        }
-        // PNG and SVG cover the two figure endpoints (slides and publication);
-        // the other formats stay in the File menu and the palette.
-        CommandId::CopyFigure
-        | CommandId::Export(ExportFormat::Png)
-        | CommandId::Export(ExportFormat::Svg) => (Figure, "Output", 0, Always),
-        CommandId::Tool(Tool::Select)
-        | CommandId::ArrangeGrid(1, 2)
-        | CommandId::ArrangeGrid(2, 2)
-        | CommandId::SimplifyInnerAxes
-        | CommandId::SetSpacingMode(_)
-        | CommandId::SetGutterPreset(_)
-        | CommandId::TidyBoard => (Arrange, "Layout", 0, Always),
-        CommandId::Align(_) => (Arrange, "Align", 1, Always),
-        CommandId::Distribute(_) => (Arrange, "Distribute", 2, Always),
-        CommandId::ZOrder(_) => (Arrange, "Order", 2, Always),
-        CommandId::ToggleSnap => (Arrange, "Guides", 1, Always),
-        CommandId::Tool(
-            Tool::Text | Tool::PanelLabel | Tool::Rect | Tool::Ellipse | Tool::Line | Tool::Arrow,
-        ) => (Arrange, "Annotate", 3, Always),
-        // The group's own declaration decides where it lands, so a new group
-        // needs no arm here.
-        CommandId::PropertyGroup(section) => {
-            let spot = super::properties::discovery::group(section)?.ribbon;
-            (spot.tab, spot.group, spot.priority, Always)
-        }
-        _ => return None,
-    };
-    Some(RibbonPlacement {
-        tab,
-        group,
-        priority,
-        applicability,
-    })
-}
-
 fn tool_commands() -> [Tool; 17] {
     [
         Tool::Select,
@@ -797,3 +718,7 @@ mod tests;
 #[cfg(test)]
 #[path = "commands_mass_spec_tests.rs"]
 mod mass_spec_tests;
+
+#[cfg(test)]
+#[path = "commands_xps_tests.rs"]
+mod xps_tests;

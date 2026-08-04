@@ -57,6 +57,14 @@ row: `f1_ppm,f2_ppm,intensity` for true 2D, or the named series axis with its
 unit, `ppm`, and `intensity` for pseudo-2D. Large exports are generated in the
 background.
 
+For XPS, **Processed data** includes native, binding-energy, processed, and fit
+axes; raw and processed CPS; the selected background model, fit window and
+anchors; background-subtracted intensity; envelope, residual, and every fit
+component. **Curve-fit parameters** adds standard errors, approximate 95%
+intervals, maximum correlation, RMSE, and optional Bootstrap quantiles. CasaXPS
+rows remain labelled `Imported (CasaXPS)` rather than being presented as PlotX
+fits.
+
 A CSV or TSV exported from a data table comes with a companion
 `.plotx-schema.json` file, and an XLSX export keeps the same information on a
 hidden worksheet. The visible columns open normally in Excel, Origin, or Prism,

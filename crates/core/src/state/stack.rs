@@ -60,19 +60,10 @@ impl PlotxApp {
         let domain = self.doc.datasets[primary].domain();
         let line_chart = ChartSpec::default_for(domain);
         // The primary's line figure supplies the axis labels and orientation.
-        let primary_is_encoded_curve = binding.series.first().is_some_and(|series| {
-            self.doc
-                .dataset_by_id(series.source.resource)
-                .and_then(|dataset| dataset.field_descriptor(series.source.field))
-                .is_some_and(|field| {
-                    field
-                        .capabilities
-                        .contains(crate::automation::CAP_FIELD_MASS_CHROMATOGRAM)
-                        || field
-                            .capabilities
-                            .contains(crate::automation::CAP_FIELD_MASS_SPECTRUM)
-                })
-        });
+        let primary_is_encoded_curve = binding
+            .series
+            .first()
+            .is_some_and(|series| self.series_uses_encoded_curve(series));
         let mut fig = if primary_is_encoded_curve {
             binding
                 .series
@@ -98,18 +89,7 @@ impl PlotxApp {
             if !sb.visible {
                 continue;
             }
-            let encoded_curve = self
-                .doc
-                .dataset_by_id(sb.source.resource)
-                .and_then(|dataset| dataset.field_descriptor(sb.source.field))
-                .is_some_and(|field| {
-                    field
-                        .capabilities
-                        .contains(crate::automation::CAP_FIELD_MASS_CHROMATOGRAM)
-                        || field
-                            .capabilities
-                            .contains(crate::automation::CAP_FIELD_MASS_SPECTRUM)
-                });
+            let encoded_curve = self.series_uses_encoded_curve(sb);
             let part = if encoded_curve {
                 self.build_encoded_series_figure(sb)
                     .map(|figure| self.normalize_binding_figure(figure, size_mm))

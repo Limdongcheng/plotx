@@ -26,6 +26,8 @@ plotx-cli process <input> --scheme <recipe.plotxproc> --output <path> [--format 
 stable machine-readable report for scripting. For ABF2 recordings it also
 reports the ABF version, channel names and units, sample rate, sweep count, and
 protocol name.
+For XPS it reports measurement, region and point counts, the region names, and
+how many regions have a binding-energy axis or remain kinetic-only.
 
 `process` is the convenience path for a single import, one
 [processing recipe](/guides/templates/), and one figure export. When

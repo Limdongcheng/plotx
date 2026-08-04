@@ -1,5 +1,9 @@
 use super::*;
-use crate::state::{AfmDataset, Dataset, ElectrophysiologyDataset, Nmr2DDataset, ToolGroup};
+use crate::state::{
+    AfmDataset, Dataset, ElectrophysiologyDataset, Nmr2DDataset, ToolGroup, default_contour_spec,
+    default_encoding,
+};
+use plotx_figure::HeatmapSpec;
 use std::sync::Arc;
 
 /// Every field of every dataset variant must derive the same capabilities from

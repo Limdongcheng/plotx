@@ -52,6 +52,22 @@ are covered in [the command line](/reference/cli/).
 A workflow is not a recipe: a recipe holds one processing pipeline, while a
 workflow describes a whole run and may reference a recipe as one of its steps.
 
+## XPS import
+
+VAMAS `.vms` support is intentionally limited to content-signed ISO 14976
+`NORM` / `REGULAR` XPS blocks with regular energy rulers. One file remains one
+experiment with stable measurement and region identities. PlotX retains native
+energy, counts, CPS, photon energy, dwell time, sweeps, position, acquisition
+conditions, and free metadata. Non-XPS blocks can be skipped with warnings only
+when their declared block boundaries are trusted; malformed XPS payloads reject
+the file. Ordinate extrema are metadata rather than data points, and ordinate
+labels plus signal mode determine whether pulse counts are converted to CPS.
+
+CasaXPS `.txt` is recognized by its eight-line structure, not by `.txt` alone.
+Its source arrays and fitted parameters are stored as an `Imported` result.
+Unstructured text continues through table import. See [XPS](/guides/xps/) for
+the energy conversion, processing, fitting, and export contract.
+
 ## Origin project import (experimental)
 
 Origin project import is experimental. Successful import is limited to two

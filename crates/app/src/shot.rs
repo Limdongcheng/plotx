@@ -29,7 +29,10 @@ use plotx_core::settings::Settings;
 use plotx_core::state::{
     AnalysisSelection, AxisRange, DEFAULT_CANVAS_SIZE_MM, Dataset, FrameRef, LineShapeKind,
     Nmr2DDataset, NmrDataset, Peak2DOrigin, Peak2DPoint, Peak2DReview, PlotxApp, Region, RegionId,
-    Tool, region_color,
+    Tool, XpsDataset, region_color,
+};
+use plotx_io::xps::{
+    XpsEnergyKind, XpsExperiment, XpsMeasurement, XpsMeasurementId, XpsRegion, XpsRegionId,
 };
 use plotx_io::{AxisSource, Dim, Domain, NmrData, NmrData2D, PseudoAxis, PseudoKind, QuadMode};
 
@@ -88,6 +91,8 @@ enum Op {
     RegionResult,
     /// Open the result's synchronized read-only values.
     RegionData,
+    XpsSetup,
+    XpsTab(plotx_core::state::XpsWorkbenchTab),
     Zoom(f32),
     Resize(f32, f32),
 }
@@ -153,6 +158,26 @@ const SCENES: &[Scene] = &[
     shot(6, "cursor_delta"),
     act(18, Op::PinSymmetry),
     shot(8, "symmetry_review"),
+    act(2, Op::Resize(1440.0, 900.0)),
+    act(2, Op::XpsSetup),
+    act(
+        2,
+        Op::XpsTab(plotx_core::state::XpsWorkbenchTab::Background),
+    ),
+    shot(8, "xps_background"),
+    act(
+        2,
+        Op::XpsTab(plotx_core::state::XpsWorkbenchTab::Components),
+    ),
+    shot(8, "xps_components"),
+    act(2, Op::Resize(720.0, 700.0)),
+    shot(10, "xps_components_narrow"),
+    act(2, Op::Resize(1440.0, 900.0)),
+    act(
+        2,
+        Op::XpsTab(plotx_core::state::XpsWorkbenchTab::Diagnostics),
+    ),
+    shot(8, "xps_diagnostics"),
 ];
 
 pub struct ShotDriver {
@@ -333,11 +358,92 @@ fn run_op(op: Op, app: &mut PlotxApp, ctx: &egui::Context) -> Result<(), String>
             app.session.ui.sheet_open = Some(1);
             app.session.ui.curve_fit_task_collapsed = true;
         }
+        Op::XpsSetup => xps_setup(app, ctx)?,
+        Op::XpsTab(tab) => app.session.ui.xps_workbench_tab = tab,
         Op::Zoom(factor) => ctx.set_zoom_factor(factor),
         Op::Resize(w, h) => {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w, h)));
         }
     }
+    Ok(())
+}
+
+fn xps_setup(app: &mut PlotxApp, ctx: &egui::Context) -> Result<(), String> {
+    *app = PlotxApp::new_with_settings(Settings::default());
+    let energy = (0..241)
+        .map(|index| 292.0 - index as f64 * 0.05)
+        .collect::<Vec<_>>();
+    let intensity = energy
+        .iter()
+        .map(|value| {
+            150.0
+                + (292.0 - value) * 2.0
+                + plotx_analysis::xps::gl_peak(*value, 284.8, 1.15, 4_500.0, 0.3)
+                + plotx_analysis::xps::gl_peak(*value, 286.3, 1.15, 1_900.0, 0.3)
+        })
+        .collect::<Vec<_>>();
+    let measurement = XpsMeasurementId(1);
+    let region = XpsRegionId(1);
+    let experiment = XpsExperiment {
+        source: "synthetic-xps.vms".into(),
+        measurements: vec![XpsMeasurement {
+            id: measurement,
+            label: "Location 1".into(),
+            position_mm: Some([0.0, 0.0, 0.0]),
+            metadata: Default::default(),
+        }],
+        regions: vec![XpsRegion {
+            id: region,
+            measurement,
+            name: "C 1s".into(),
+            native_energy_kind: XpsEnergyKind::Binding,
+            native_energy_ev: energy.clone(),
+            binding_energy_ev: Some(energy.clone()),
+            intensity_cps: intensity,
+            counts: None,
+            photon_energy_ev: Some(1486.69),
+            dwell_time_s: Some(0.1),
+            sweeps: Some(5),
+            imported_fit: None,
+            metadata: Default::default(),
+        }],
+        metadata: Default::default(),
+        import_warnings: Vec::new(),
+    };
+    let mut xps = XpsDataset::load(experiment);
+    let workspace = xps.fit_workspaces.get_mut(&region).unwrap();
+    let first = plotx_analysis::xps::XpsComponentId::new(1);
+    workspace.invocation.peaks = vec![
+        plotx_analysis::xps::XpsPeakSpec::independent(first, "Aromatic C", 284.8, 4_000.0),
+        plotx_analysis::xps::XpsPeakSpec {
+            id: plotx_analysis::xps::XpsComponentId::new(2),
+            label: "C=N / C-O".into(),
+            center: plotx_analysis::xps::XpsCenterConstraint::Free {
+                initial_ev: 286.3,
+                bounds_ev: [285.8, 286.8],
+            },
+            fwhm: plotx_analysis::xps::XpsFwhmConstraint::Shared { reference: first },
+            area: plotx_analysis::xps::XpsAreaConstraint::Free {
+                initial: 1_800.0,
+                bounds: [0.0, 36_000.0],
+            },
+        },
+    ];
+    workspace.next_component_id = 3;
+    let dataset = xps.resource_id;
+    let action = Action::insert_dataset_with_default_canvas(
+        app,
+        Dataset::Xps(Box::new(xps)),
+        "Canvas 1 — synthetic XPS".into(),
+        DEFAULT_CANVAS_SIZE_MM,
+    );
+    app.execute_action(action);
+    app.run_xps_fit(dataset, region)?;
+    app.session.ui.requested_tool_group = Some(plotx_core::state::ToolGroup::Xps);
+    app.session.secondary_sidebar_visible = true;
+    app.session.secondary_sidebar_width = 390.0;
+    app.session.active_canvas = Some(0);
+    crate::ui::canvas::request_board_fit(app, ctx, FrameRef::Page(0));
     Ok(())
 }
 
@@ -670,9 +776,9 @@ mod tests {
     #[test]
     fn expected_count_covers_every_scene_in_both_palettes() {
         let per_pass = SCENES.iter().filter(|s| s.shot.is_some()).count();
-        assert_eq!(per_pass, 10, "scene list should define 10 captures");
+        assert_eq!(per_pass, 14, "scene list should define 14 captures");
         // Default run (no PLOTX_SHOT_THEME) replays every scene in both palettes.
-        assert_eq!(per_pass * 2, 20);
+        assert_eq!(per_pass * 2, 28);
     }
 
     #[test]

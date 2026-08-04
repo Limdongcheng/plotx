@@ -56,6 +56,7 @@ export default defineConfig({
 								{ slug: 'guides/2d-integration' },
 								{ slug: 'guides/symmetry-review' },
 								{ slug: 'guides/electrophysiology' },
+								{ slug: 'guides/xps' },
 							],
 						},
 					],

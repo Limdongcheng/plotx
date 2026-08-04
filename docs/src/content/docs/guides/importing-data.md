@@ -3,7 +3,7 @@ title: Importing data
 description: Supported file formats and how to open them.
 ---
 
-PlotX reads vendor LC–MS, NMR, AFM, and electrophysiology formats directly —
+PlotX reads vendor LC–MS, NMR, XPS, AFM, and electrophysiology formats directly —
 no conversion step is needed.
 
 ## Supported formats
@@ -18,6 +18,8 @@ no conversion step is needed.
 | Bruker NanoScope AFM | `.spm` / `.pfc` | Images, force curves, force-volume and PeakForce Capture cubes |
 | JCAMP-DX | `.dx` / `.jdx` / `.jcamp` | 1D frequency-domain NMR spectra |
 | Axon Binary Format 2 | `.abf` | int16/float32, multiple channels and sweeps, embedded DAC/epoch stimuli |
+| VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS blocks, including multiple measurement positions and regions |
+| CasaXPS text | `.txt` | Structured eight-line export with raw spectrum, background, envelope, components, and fitted parameters |
 | Tabular data | `.csv`, `.tsv`, `.txt`, `.xlsx` | Column types and empty cells preserved; one table per XLSX worksheet |
 | Origin project (experimental) | `.opj`, `.opju` | Worksheets from the verified Origin 7.0552 and Origin 9.51 OPJ profiles; graphs are not imported, and `.opju` is detection-only. See [compatibility details](/reference/file-formats/). |
 | Zip archive | `.zip` | An archived dataset folder |
@@ -31,10 +33,13 @@ TopSpin and Waters MassLynx RAW), *Open Project…*, or *Import Table…*.
 Each imported dataset appears in the Primary Side Bar and is placed on the
 board automatically.
 The file picker accepts several ABF files at once. Opening a folder recursively
-imports every `.abf`, `.spm`, `.pfc`, and recognized `.raw` bundle below it.
+imports every `.abf`, `.spm`, `.pfc`, `.vms`, structured CasaXPS `.txt`, and recognized `.raw` bundle below it.
 A `.raw` directory is imported once as a complete run; its internal files are
 not treated as separate datasets. For ABF files, each immediate parent folder
 becomes the initial, editable cell ID.
+CasaXPS `.txt` files are recognized from their structured header, not from the
+extension alone. Other `.txt` files continue through table import. See the
+[XPS workflow](/guides/xps/) for energy-axis and fitting details.
 
 ## mzML
 

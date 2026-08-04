@@ -13,6 +13,7 @@ pub enum DatasetBlob<'a> {
     Afm(&'a plotx_io::AfmData),
     MassSpec(&'a crate::state::MassSpecDataset),
     Xrd(&'a plotx_io::XrdData),
+    Xps(&'a plotx_io::xps::XpsExperiment),
 }
 
 pub struct DatasetObjects<'a> {
@@ -24,7 +25,7 @@ pub struct DatasetObjects<'a> {
 }
 
 impl<'a> DatasetObjects<'a> {
-    fn primary(data: DataObject, blob: DatasetBlob<'a>, recipe: RecipeObject) -> Self {
+    pub(super) fn primary(data: DataObject, blob: DatasetBlob<'a>, recipe: RecipeObject) -> Self {
         Self {
             data,
             blob,
@@ -313,6 +314,7 @@ pub fn dataset_to_objects<'a>(
             };
             DatasetObjects::primary(data, DatasetBlob::Xrd(&xrd.data), recipe)
         }
+        Dataset::Xps(xps) => super::xps_convert::to_objects(xps, data_id, recipe_id),
     })
 }
 pub fn object_to_dataset(
@@ -368,6 +370,9 @@ pub fn object_to_dataset(
             .validate_field_catalog()
             .map_err(ProjectError::Invalid)?;
         return Ok(dataset);
+    }
+    if super::xps_convert::matches(data) {
+        return super::xps_convert::from_objects(zip, data, recipe);
     }
     // Named generic decoder functions do not satisfy the higher-ranked lifetime
     // required by `ZipFile`; closures let the compiler reborrow each entry.

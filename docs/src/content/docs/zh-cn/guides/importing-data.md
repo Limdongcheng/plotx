@@ -3,7 +3,7 @@ title: 导入数据
 description: 支持的文件格式及打开方式。
 ---
 
-PlotX 直接读取厂商 LC–MS、NMR、AFM 与电生理格式，无需任何转换步骤。
+PlotX 直接读取厂商 LC–MS、NMR、XPS、AFM 与电生理格式，无需任何转换步骤。
 
 ## 支持的格式
 
@@ -17,6 +17,8 @@ PlotX 直接读取厂商 LC–MS、NMR、AFM 与电生理格式，无需任何�
 | Bruker NanoScope AFM | `.spm` / `.pfc` | 图像、力曲线、Force Volume 与 PeakForce Capture 数据立方体 |
 | JCAMP-DX | `.dx` / `.jdx` / `.jcamp` | 1D 频域 NMR 谱 |
 | Axon Binary Format 2 | `.abf` | int16/float32、多通道、多 sweep，以及文件内 DAC/epoch 刺激 |
+| VAMAS XPS | `.vms` | ISO 14976 `NORM` / `REGULAR` XPS 区块，支持多个测量位置与谱区 |
+| CasaXPS 文本 | `.txt` | 含原始谱、背景、包络、组件和拟合参数的结构化八行头导出 |
 | 表格数据 | `.csv`、`.tsv`、`.txt`、`.xlsx` | 保留列类型与空单元格；每个 XLSX 工作表导入为独立数据表 |
 | Origin 项目（实验性） | `.opj`、`.opju` | 经验证的 Origin 7.0552 与 Origin 9.51 OPJ 配置中的工作表；不导入图形，`.opju` 仅作识别。见[兼容性详情](/zh-cn/reference/file-formats/)。 |
 | Zip 压缩包 | `.zip` | 打包的数据文件夹 |
@@ -29,9 +31,11 @@ PlotX 直接读取厂商 LC–MS、NMR、AFM 与电生理格式，无需任何�
 *Open Project…* 或 *Import Table…*。每个导入的数据集会出现在主侧栏中，
 并自动放置到画板上。
 文件选择器可以一次选择多个 ABF。打开文件夹时会递归导入其中所有 `.abf`、
-`.spm`、`.pfc` 和已识别的 `.raw` 数据包。每个 `.raw` 目录会作为一次完整采集
+`.spm`、`.pfc`、`.vms`、结构化 CasaXPS `.txt` 和已识别的 `.raw` 数据包。每个 `.raw` 目录会作为一次完整采集
 导入一次，其中的内部文件不会被当作独立数据集。对 ABF 文件，每个文件的直接
 父目录名会成为可编辑的初始 cell ID。
+CasaXPS `.txt` 按结构头内容识别，而不是只看扩展名；其他 `.txt` 仍进入表格导入。
+能量轴与拟合细节见 [XPS 工作流](/zh-cn/guides/xps/)。
 
 ## mzML
 

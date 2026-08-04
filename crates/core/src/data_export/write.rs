@@ -1,7 +1,7 @@
 //! Delimited-record serializers for each snapshot layout, plus the file-name
 //! sanitizer used for suggested export names.
 
-use super::{DataExportRequest, IntensityChannel, TableShape};
+use super::{DataExportRequest, IntensityChannel, TableShape, XpsDataSnapshot, XpsFitParameterRow};
 use crate::state::{PeakOrigin, ResolvedPeak, StoredCurveFitAnalysis};
 use crate::{BaselineMode, Integral2D, IntegralMethod, IntegralResult};
 use num_complex::Complex64;
@@ -66,6 +66,192 @@ pub(super) fn write_xrd<W: Write>(
         ])?;
     }
     Ok(())
+}
+
+pub(super) fn write_xps<W: Write>(
+    writer: &mut DelimitedWriter<W>,
+    data: &XpsDataSnapshot,
+) -> io::Result<()> {
+    let mut header = vec![
+        Field::Text("native_energy_ev"),
+        Field::Text("binding_energy_ev"),
+        Field::Text("raw_cps"),
+        Field::Text("processed_energy_ev"),
+        Field::Text("processed_cps"),
+        Field::Text("fit_energy_ev"),
+        Field::Text("background_cps"),
+        Field::Text("background_subtracted_cps"),
+        Field::Text("envelope_cps"),
+        Field::Text("residual_cps"),
+        Field::Text("background_model"),
+        Field::Text("fit_window_low_ev"),
+        Field::Text("fit_window_high_ev"),
+        Field::Text("low_anchor_low_ev"),
+        Field::Text("low_anchor_high_ev"),
+        Field::Text("high_anchor_low_ev"),
+        Field::Text("high_anchor_high_ev"),
+    ];
+    header.extend(data.components.iter().map(|(label, _)| Field::Text(label)));
+    writer.write_record(&header)?;
+    let rows = data
+        .native_energy_ev
+        .len()
+        .max(data.processed_energy_ev.len())
+        .max(data.background.len());
+    for row in 0..rows {
+        let number = |values: &[f64]| values.get(row).copied().map_or(Field::Empty, Field::Number);
+        let mut fields = vec![
+            number(&data.native_energy_ev),
+            data.binding_energy_ev
+                .as_deref()
+                .map_or(Field::Empty, &number),
+            number(&data.raw_cps),
+            number(&data.processed_energy_ev),
+            number(&data.processed_cps),
+            number(&data.fit_energy_ev),
+            number(&data.background),
+            number(&data.background_subtracted),
+            number(&data.envelope),
+            number(&data.residual),
+            if row == 0 {
+                data.background_model
+                    .as_deref()
+                    .map_or(Field::Empty, Field::Text)
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.background_window_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[0]))
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.background_window_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[1]))
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.low_anchor_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[0]))
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.low_anchor_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[1]))
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.high_anchor_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[0]))
+            } else {
+                Field::Empty
+            },
+            if row == 0 {
+                data.high_anchor_ev
+                    .map_or(Field::Empty, |value| Field::Number(value[1]))
+            } else {
+                Field::Empty
+            },
+        ];
+        fields.extend(data.components.iter().map(|(_, values)| number(values)));
+        writer.write_record(&fields)?;
+    }
+    Ok(())
+}
+
+pub(super) fn write_xps_fits<W: Write>(
+    writer: &mut DelimitedWriter<W>,
+    rows: &[XpsFitParameterRow],
+) -> io::Result<()> {
+    writer.write_record(&[
+        Field::Text("provenance"),
+        Field::Text("assignment"),
+        Field::Text("position_ev"),
+        Field::Text("fwhm_ev"),
+        Field::Text("area"),
+        Field::Text("area_fraction"),
+        Field::Text("r_squared"),
+        Field::Text("rmse"),
+        Field::Text("residual_lag1"),
+        Field::Text("position_at_bound"),
+        Field::Text("fwhm_at_bound"),
+        Field::Text("area_at_bound"),
+        Field::Text("position_standard_error"),
+        Field::Text("position_95_low_ev"),
+        Field::Text("position_95_high_ev"),
+        Field::Text("fwhm_standard_error"),
+        Field::Text("fwhm_95_low_ev"),
+        Field::Text("fwhm_95_high_ev"),
+        Field::Text("area_standard_error"),
+        Field::Text("area_95_low"),
+        Field::Text("area_95_high"),
+        Field::Text("maximum_correlation"),
+        Field::Text("bootstrap_position_p2_5"),
+        Field::Text("bootstrap_position_p50"),
+        Field::Text("bootstrap_position_p97_5"),
+        Field::Text("bootstrap_fwhm_p2_5"),
+        Field::Text("bootstrap_fwhm_p50"),
+        Field::Text("bootstrap_fwhm_p97_5"),
+        Field::Text("bootstrap_area_p2_5"),
+        Field::Text("bootstrap_area_p50"),
+        Field::Text("bootstrap_area_p97_5"),
+        Field::Text("bootstrap_fraction_p2_5"),
+        Field::Text("bootstrap_fraction_p50"),
+        Field::Text("bootstrap_fraction_p97_5"),
+    ])?;
+    for row in rows {
+        let boolean = |value: Option<bool>| {
+            value.map_or(Field::Empty, |value| {
+                Field::Text(if value { "true" } else { "false" })
+            })
+        };
+        writer.write_record(&[
+            Field::Text(row.provenance),
+            Field::Text(&row.label),
+            Field::Number(row.center_ev),
+            Field::Number(row.fwhm_ev),
+            Field::Number(row.area),
+            row.fraction.map_or(Field::Empty, Field::Number),
+            row.r_squared.map_or(Field::Empty, Field::Number),
+            row.rmse.map_or(Field::Empty, Field::Number),
+            row.residual_lag1.map_or(Field::Empty, Field::Number),
+            boolean(row.hit_position_bound),
+            boolean(row.hit_fwhm_bound),
+            boolean(row.hit_area_bound),
+            row.center_standard_error
+                .map_or(Field::Empty, Field::Number),
+            interval(row.center_confidence_95, 0),
+            interval(row.center_confidence_95, 1),
+            row.fwhm_standard_error.map_or(Field::Empty, Field::Number),
+            interval(row.fwhm_confidence_95, 0),
+            interval(row.fwhm_confidence_95, 1),
+            row.area_standard_error.map_or(Field::Empty, Field::Number),
+            interval(row.area_confidence_95, 0),
+            interval(row.area_confidence_95, 1),
+            row.maximum_correlation.map_or(Field::Empty, Field::Number),
+            interval(row.bootstrap_center, 0),
+            interval(row.bootstrap_center, 1),
+            interval(row.bootstrap_center, 2),
+            interval(row.bootstrap_fwhm, 0),
+            interval(row.bootstrap_fwhm, 1),
+            interval(row.bootstrap_fwhm, 2),
+            interval(row.bootstrap_area, 0),
+            interval(row.bootstrap_area, 1),
+            interval(row.bootstrap_area, 2),
+            interval(row.bootstrap_fraction, 0),
+            interval(row.bootstrap_fraction, 1),
+            interval(row.bootstrap_fraction, 2),
+        ])?;
+    }
+    Ok(())
+}
+
+fn interval<const N: usize>(value: Option<[f64; N]>, index: usize) -> Field<'static> {
+    value.map_or(Field::Empty, |value| Field::Number(value[index]))
 }
 
 pub(super) fn write_true_2d<W: Write>(

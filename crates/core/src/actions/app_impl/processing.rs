@@ -54,6 +54,24 @@ impl PlotxApp {
             (Dataset::Xrd(data), DatasetProcessingState::Xrd(processing)) => {
                 data.params = *processing;
             }
+            (
+                Dataset::Xps(xps),
+                DatasetProcessingState::Xps {
+                    active_region,
+                    measurement_shifts,
+                    region_recipes,
+                    fit_workspaces,
+                    fits,
+                    next_step_id,
+                },
+            ) => {
+                xps.active_region = *active_region;
+                xps.measurement_shifts = measurement_shifts.clone();
+                xps.region_recipes = region_recipes.clone();
+                xps.fit_workspaces = fit_workspaces.clone();
+                xps.fits = fits.clone();
+                xps.next_step_id = *next_step_id;
+            }
             _ => {}
         }
     }
@@ -102,9 +120,21 @@ impl PlotxApp {
         before: DatasetProcessingState,
         after: DatasetProcessingState,
     ) {
+        if let Err(error) = self.try_commit_processing_edit(dataset, before, after) {
+            self.session.status = error;
+        }
+    }
+
+    pub(crate) fn try_commit_processing_edit(
+        &mut self,
+        dataset: usize,
+        before: DatasetProcessingState,
+        after: DatasetProcessingState,
+    ) -> Result<(), String> {
         let Some(dataset_id) = self.doc.datasets.get(dataset).map(Dataset::resource_id) else {
-            return;
+            return Err("The processing dataset is no longer available.".into());
         };
+        validate_processing_state(&self.doc.datasets[dataset], &after)?;
         if self
             .session
             .ui
@@ -118,7 +148,7 @@ impl PlotxApp {
             {
                 self.session.status = error;
             }
-            return;
+            return Ok(());
         }
         if self.session.ui.proc_paused {
             self.set_recipe_no_recompute(dataset, &after);
@@ -126,8 +156,10 @@ impl PlotxApp {
                 self.session.ui.proc_pending = Some((dataset_id, before));
             }
         } else {
-            self.execute_action(Action::update_dataset_processing(dataset_id, before, after));
+            self.try_execute_action(Action::update_dataset_processing(dataset_id, before, after))
+                .map_err(|error| error.to_string())?;
         }
+        Ok(())
     }
 
     pub fn has_pending_processing(&self) -> bool {
@@ -326,6 +358,13 @@ pub(super) fn validate_processing_state(
         (Dataset::Xrd(_), DatasetProcessingState::Xrd(processing)) => {
             plotx_processing::xrd::validate(*processing)
                 .map_err(|error| format!("Cannot apply invalid XRD processing pipeline: {error}"))
+        }
+        (Dataset::Xps(_), DatasetProcessingState::Xps { .. }) => {
+            let mut candidate = dataset.clone();
+            state
+                .apply_to(&mut candidate)
+                .map(|_| ())
+                .map_err(|error| format!("Cannot apply invalid XPS state: {error}"))
         }
         _ => Ok(()),
     }

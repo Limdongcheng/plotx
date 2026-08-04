@@ -32,8 +32,8 @@ pub enum SchemeTargetResult {
     /// incompatible target may be a stale index with no dataset behind it.
     Compatible {
         dataset_id: DatasetId,
-        before: DatasetProcessingState,
-        after: DatasetProcessingState,
+        before: Box<DatasetProcessingState>,
+        after: Box<DatasetProcessingState>,
     },
     Incompatible {
         reason: String,
@@ -99,8 +99,8 @@ impl SchemeApplicationPlan {
                     applied_targets.push(target.dataset);
                     actions.push(Action::update_dataset_processing(
                         *dataset_id,
-                        before.clone(),
-                        after.clone(),
+                        (**before).clone(),
+                        (**after).clone(),
                     ));
                 }
                 SchemeTargetResult::Incompatible { .. } => skipped_targets.push(target.dataset),
@@ -141,8 +141,8 @@ pub fn plan_scheme_application(
                 Some(target) => match apply_scheme(scheme, target) {
                     Ok(after) => SchemeTargetResult::Compatible {
                         dataset_id: target.resource_id(),
-                        before: DatasetProcessingState::from_dataset(target),
-                        after,
+                        before: Box::new(DatasetProcessingState::from_dataset(target)),
+                        after: Box::new(after),
                     },
                     Err(error) => SchemeTargetResult::Incompatible {
                         reason: error.to_string(),
@@ -261,6 +261,9 @@ pub fn apply_scheme(
         Dataset::Xrd(_) => Err(incompatible(
             "XRD processing recipes use XRD-specific parameters",
         )),
+        Dataset::Xps(_) => Err(incompatible(
+            "NMR processing templates do not apply to XPS datasets",
+        )),
     }
 }
 
@@ -299,6 +302,7 @@ pub fn reset_processing(dataset: &Dataset) -> Option<DatasetProcessingState> {
         Dataset::Xrd(_) => Some(DatasetProcessingState::Xrd(
             plotx_processing::xrd::XrdProcessing::default(),
         )),
+        Dataset::Xps(_) => None,
     }?;
     let mut next = dataset_next_step_id(dataset);
     match &mut state {
@@ -346,6 +350,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
         Dataset::Xrd(_) => None,
+        Dataset::Xps(_) => None,
     }
 }
 
@@ -378,8 +383,8 @@ mod plan_tests {
                     dataset: 2,
                     result: SchemeTargetResult::Compatible {
                         dataset_id: DatasetId::new(),
-                        before: state(),
-                        after: state(),
+                        before: Box::new(state()),
+                        after: Box::new(state()),
                     },
                 },
                 SchemeApplicationTarget {

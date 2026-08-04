@@ -42,6 +42,19 @@ pub enum DatasetProcessingState {
     Electrophysiology(crate::state::ElectrophysiologyProcessing),
     Afm,
     Xrd(XrdProcessing),
+    Xps {
+        active_region: plotx_io::xps::XpsRegionId,
+        measurement_shifts: std::collections::BTreeMap<plotx_io::xps::XpsMeasurementId, f64>,
+        region_recipes: std::collections::BTreeMap<
+            plotx_io::xps::XpsRegionId,
+            plotx_processing::xps::XpsProcessingRecipe,
+        >,
+        fit_workspaces:
+            std::collections::BTreeMap<plotx_io::xps::XpsRegionId, crate::state::XpsFitWorkspace>,
+        fits:
+            std::collections::BTreeMap<plotx_io::xps::XpsRegionId, Vec<crate::state::StoredXpsFit>>,
+        next_step_id: u64,
+    },
 }
 
 #[derive(Clone)]

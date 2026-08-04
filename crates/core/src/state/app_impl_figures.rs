@@ -59,18 +59,7 @@ impl PlotxApp {
             self.build_stacked_figure(binding, stack, size_mm)
         } else {
             if let Some(series) = binding.series.first()
-                && self
-                    .doc
-                    .dataset_by_id(series.source.resource)
-                    .and_then(|dataset| dataset.field_descriptor(series.source.field))
-                    .is_some_and(|field| {
-                        field
-                            .capabilities
-                            .contains(crate::automation::CAP_FIELD_MASS_CHROMATOGRAM)
-                            || field
-                                .capabilities
-                                .contains(crate::automation::CAP_FIELD_MASS_SPECTRUM)
-                    })
+                && self.series_uses_encoded_curve(series)
             {
                 let figure = self
                     .build_encoded_series_figure(series)
@@ -302,6 +291,21 @@ impl PlotxApp {
             }
         }
         dataset.encoded_field_figure(series.source.field, &series.encoding)
+    }
+
+    pub(super) fn series_uses_encoded_curve(&self, series: &SeriesBinding) -> bool {
+        self.doc
+            .dataset_by_id(series.source.resource)
+            .and_then(|dataset| dataset.field_descriptor(series.source.field))
+            .is_some_and(|field| {
+                [
+                    crate::automation::CAP_FIELD_MASS_CHROMATOGRAM,
+                    crate::automation::CAP_FIELD_MASS_SPECTRUM,
+                    crate::automation::CAP_FIELD_XPS_SPECTRUM,
+                ]
+                .iter()
+                .any(|capability| field.capabilities.contains(capability))
+            })
     }
 
     /// Materialize the worker-owned grid. Only the enqueue paths call this;

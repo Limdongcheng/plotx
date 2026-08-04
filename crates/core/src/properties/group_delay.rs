@@ -107,7 +107,8 @@ fn dataset_context<'a>(
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
-        | Dataset::Xrd(_) => Err(PropertyError::NotApplicable(
+        | Dataset::Xrd(_)
+        | Dataset::Xps(_) => Err(PropertyError::NotApplicable(
             "Group-delay correction applies only to NMR datasets.".to_owned(),
         )),
     }

@@ -43,6 +43,7 @@ mod app_impl_statistics;
 #[cfg(test)]
 mod app_impl_statistics_tests;
 mod app_impl_symmetry;
+mod app_impl_xps;
 mod app_state;
 mod axis_overrides;
 mod board;
@@ -63,6 +64,7 @@ mod electrophysiology;
 mod field;
 mod field_cache;
 mod field_catalog;
+mod field_defaults;
 mod field_payload;
 mod field_runtime;
 mod fit_selection;
@@ -105,6 +107,7 @@ mod ui_drag;
 mod ui_state;
 mod units;
 mod workflow_tab;
+mod xps;
 mod xrd;
 
 pub use afm::*;
@@ -112,6 +115,7 @@ pub use app_impl::*;
 pub use app_impl_align::*;
 pub use app_impl_analysis::validate_ilt_params;
 pub use app_impl_linefit::LineFitJob;
+pub use app_impl_xps::{XpsFitJob, estimate_xps_charge_shift, xps_input_sha256, xps_template};
 pub use app_state::*;
 pub use axis_overrides::*;
 pub use board::*;
@@ -140,6 +144,7 @@ pub(crate) use field_catalog::{
     electrophysiology_channel_keys, electrophysiology_field_catalog_for_keys, nmr_field_catalog,
     nmr2d_field_catalog, table_field_catalog,
 };
+pub use field_defaults::*;
 pub(crate) use field_payload::nmr_scalar_grid;
 pub use field_runtime::*;
 pub use identity::*;
@@ -175,6 +180,7 @@ pub use ui_drag::*;
 pub use ui_state::*;
 pub use units::*;
 pub use workflow_tab::WorkflowTab;
+pub use xps::*;
 pub use xrd::*;
 
 /// Points per millimetre (72 pt/inch ÷ 25.4 mm/inch), for sizing print figures.

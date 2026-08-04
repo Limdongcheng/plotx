@@ -22,12 +22,14 @@ pub(super) fn collect_data_files(folder: &Path, output: &mut Vec<PathBuf>) {
                 .extension()
                 .and_then(|value| value.to_str())
                 .unwrap_or("");
-            let supported_extension = ["abf", "spm", "pfc", "rasx"]
+            let supported_extension = ["abf", "spm", "pfc", "rasx", "vms"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported));
             let recognized_raw =
                 extension.eq_ignore_ascii_case("raw") && plotx_io::xrd::is_rigaku_raw(&path);
-            if supported_extension || recognized_raw {
+            let recognized_casaxps =
+                extension.eq_ignore_ascii_case("txt") && plotx_io::xps::is_casaxps_text(&path);
+            if supported_extension || recognized_raw || recognized_casaxps {
                 output.push(path);
             }
         }

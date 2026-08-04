@@ -9,6 +9,9 @@ use crate::fit::{
 };
 use std::f64::consts::{FRAC_PI_2, LN_2, PI};
 
+mod constrained;
+pub use constrained::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineShape {
     Lorentzian,

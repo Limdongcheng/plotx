@@ -624,6 +624,7 @@ mod tests {
             Acquisition::Electrophysiology(_) => panic!("expected NMR"),
             Acquisition::Afm(_) => panic!("expected NMR"),
             Acquisition::MassSpec(_) | Acquisition::Xrd(_) => panic!("expected NMR"),
+            Acquisition::Xps(_) => panic!("expected NMR"),
         };
         let from_dir = unwrap1d(read_bruker(&dir).unwrap());
         let from_file = unwrap1d(read_bruker(&dir.join("fid")).unwrap());
@@ -673,6 +674,7 @@ mod tests {
             Acquisition::Electrophysiology(_) => panic!("expected NMR"),
             Acquisition::Afm(_) => panic!("expected NMR"),
             Acquisition::MassSpec(_) | Acquisition::Xrd(_) => panic!("expected NMR"),
+            Acquisition::Xps(_) => panic!("expected NMR"),
         };
         assert_eq!((two.cols, two.rows), (2, 2));
         assert_eq!(

@@ -48,6 +48,12 @@ F1/ppm 或伪 2D 的系列轴；Long 每行一个观测值，真实 2D 使用
 `f1_ppm,f2_ppm,intensity`，伪 2D 则使用带名称和单位的系列轴、`ppm` 与
 `intensity`。大型导出在后台生成。
 
+对 XPS，**Processed data** 包含原生轴、结合能轴、处理轴与拟合轴，原始/处理后 CPS，
+所选背景模型、拟合窗口与锚点，扣背景强度、拟合包络、残差和每个组件；
+**Curve-fit parameters** 还包含标准误、近似 95% 区间、最大相关性、RMSE 与可选
+Bootstrap 分位数。CasaXPS 结果始终标为 `Imported (CasaXPS)`，不会伪装成 PlotX
+拟合。
+
 从数据表导出的 CSV 或 TSV 会附带一个配套的 `.plotx-schema.json` 文件，XLSX 导出
 则把同样的信息保存在隐藏工作表中。可见的列在 Excel、Origin 或 Prism 中正常打开，
 而配套信息让 PlotX 日后能连同列类型、单位和误差棒一起重新打开该表。导出的 XLSX

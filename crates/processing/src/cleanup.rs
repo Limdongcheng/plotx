@@ -12,6 +12,35 @@ pub fn smooth(spec: &mut Spectrum, method: SmoothMethod) {
     }
 }
 
+/// Gaussian smoothing for real-valued detection helpers that need a stable,
+/// symmetric kernel but are not persisted processing steps.
+pub fn gaussian_smooth_real(values: &[f64], sigma: f64) -> Option<Vec<f64>> {
+    if values.is_empty()
+        || !sigma.is_finite()
+        || sigma <= 0.0
+        || values.iter().any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    let radius = (3.0 * sigma).ceil() as isize;
+    Some(
+        (0..values.len())
+            .map(|index| {
+                let mut weighted = 0.0;
+                let mut total = 0.0;
+                for offset in -radius..=radius {
+                    let source =
+                        (index as isize + offset).clamp(0, values.len() as isize - 1) as usize;
+                    let weight = (-0.5 * (offset as f64 / sigma).powi(2)).exp();
+                    weighted += values[source] * weight;
+                    total += weight;
+                }
+                weighted / total
+            })
+            .collect(),
+    )
+}
+
 fn moving_average(values: &mut Vec<Complex64>, window: usize) {
     let n = values.len();
     let w = (window.max(3) | 1).min(if n % 2 == 1 { n } else { n.saturating_sub(1) });

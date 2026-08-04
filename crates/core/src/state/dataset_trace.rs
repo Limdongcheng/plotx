@@ -26,6 +26,7 @@ impl Dataset {
             Self::Afm(_) => String::new(),
             Self::MassSpec(_) => "min".into(),
             Self::Xrd(_) => "deg".into(),
+            Self::Xps(_) => "eV".into(),
         }
     }
 
@@ -46,6 +47,7 @@ impl Dataset {
             Self::Afm(_) => false,
             Self::MassSpec(_) => true,
             Self::Xrd(_) => true,
+            Self::Xps(data) => data.displayed_region(data.active_region).is_some(),
         }
     }
 
@@ -94,6 +96,14 @@ impl Dataset {
                 ys: data.processed.intensity.clone(),
                 x_reversed: false,
             }),
+            Self::Xps(data) => {
+                let processed = data.displayed_region(data.active_region)?;
+                Some(Trace1d {
+                    xs: processed.binding_energy_ev,
+                    ys: processed.intensity,
+                    x_reversed: data.active_region().binding_energy_ev.is_some(),
+                })
+            }
         }
     }
 }

@@ -312,6 +312,83 @@ pub(crate) fn param_sigma(
     }
 }
 
+/// Covariance of fitted parameters from the inverse numerical-Jacobian normal
+/// matrix and residual variance. Callers remain responsible for propagating
+/// this local approximation through any parameter transforms or constraints.
+pub fn parameter_covariance(
+    x: &[f64],
+    y: &[f64],
+    p: &[f64],
+    model: impl Fn(&[f64], f64) -> f64,
+) -> Option<Vec<Vec<f64>>> {
+    let m = p.len();
+    let n = x.len();
+    if m == 0 || n <= m {
+        return None;
+    }
+    let mut jtj = vec![vec![0.0; m]; m];
+    let mut ss = 0.0;
+    let mut trial = p.to_vec();
+    for (&xi, &yi) in x.iter().zip(y) {
+        let residual = yi - model(p, xi);
+        ss += residual * residual;
+        let mut gradient = vec![0.0; m];
+        for j in 0..m {
+            let h = jac_step(p[j]);
+            trial[j] = p[j] + h;
+            let plus = model(&trial, xi);
+            trial[j] = p[j] - h;
+            let minus = model(&trial, xi);
+            trial[j] = p[j];
+            gradient[j] = (plus - minus) / (2.0 * h);
+        }
+        for a in 0..m {
+            for b in a..m {
+                jtj[a][b] += gradient[a] * gradient[b];
+            }
+        }
+    }
+    mirror_upper(&mut jtj);
+    let variance = ss / (n - m) as f64;
+    let mut covariance = vec![vec![0.0; m]; m];
+    for col in 0..m {
+        let mut unit = vec![0.0; m];
+        unit[col] = 1.0;
+        let inverse_col = solve_linear(&jtj, &unit)?;
+        for row in 0..m {
+            covariance[row][col] = inverse_col[row] * variance;
+        }
+    }
+    Some(covariance)
+}
+
+/// Covariance for an [`LmProblem`] that already supplies its normal equations.
+/// `observations` is the residual count used to estimate the residual variance.
+pub fn problem_parameter_covariance(
+    problem: &mut impl LmProblem,
+    p: &[f64],
+    observations: usize,
+) -> Option<Vec<Vec<f64>>> {
+    let parameters = p.len();
+    if parameters == 0 || observations <= parameters {
+        return None;
+    }
+    let mut normal = vec![vec![0.0; parameters]; parameters];
+    let mut rhs = vec![0.0; parameters];
+    problem.normal_equations(p, &mut normal, &mut rhs);
+    let variance = problem.cost(p) / (observations - parameters) as f64;
+    let mut covariance = vec![vec![0.0; parameters]; parameters];
+    for column in 0..parameters {
+        let mut unit = vec![0.0; parameters];
+        unit[column] = 1.0;
+        let inverse_column = solve_linear(&normal, &unit)?;
+        for row in 0..parameters {
+            covariance[row][column] = inverse_column[row] * variance;
+        }
+    }
+    Some(covariance)
+}
+
 /// Solve `a·x = b` for a small symmetric system by Gauss–Jordan with partial
 /// pivoting. Returns `None` if singular.
 pub fn solve_linear(a: &[Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {

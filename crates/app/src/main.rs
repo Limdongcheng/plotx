@@ -152,7 +152,7 @@ impl eframe::App for Shell {
         {
             *PENDING_INSTALL.lock().unwrap() = Some(plan.clone());
         }
-        let fitting = self.app.poll_line_fit();
+        let fitting = self.app.poll_line_fit() | self.app.poll_xps_fit();
         let symmetry = self.app.poll_symmetry_audit();
         let transforming = self.app.poll_table_transform();
         ui::render(

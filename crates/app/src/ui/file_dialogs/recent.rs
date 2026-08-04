@@ -9,7 +9,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read};
 use std::path::Path;
 
-pub(super) const OPEN_HEADER_BYTES: usize = plotx_io::origin::MAX_PROBE_BYTES;
+pub(super) const OPEN_HEADER_BYTES: usize = 16 * 1024;
 type OpenHeader = ([u8; OPEN_HEADER_BYTES], usize);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -225,6 +225,11 @@ fn classify_open_header(path: &Path, header: &[u8]) -> Result<RecentOpenKind, Op
         reject_origin_family_mismatch(path, probe.format)?;
         return Ok(RecentOpenKind::OriginProject);
     }
+    if let Ok(text) = std::str::from_utf8(header)
+        && (plotx_io::xps::is_vamas_content(text) || plotx_io::xps::is_casaxps_content(text))
+    {
+        return Ok(RecentOpenKind::DataFile);
+    }
 
     Ok(extension_open_kind(path))
 }
@@ -393,3 +398,7 @@ fn record_pending_table_import(app: &mut PlotxApp, path: &Path) {
 #[cfg(test)]
 #[path = "recent_report_tests.rs"]
 mod recent_report_tests;
+
+#[cfg(test)]
+#[path = "xps_routing_tests.rs"]
+mod xps_routing_tests;

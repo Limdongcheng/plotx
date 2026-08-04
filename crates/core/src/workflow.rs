@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 #[path = "workflow/mass_spec_layout.rs"]
 mod mass_spec_layout;
+#[path = "workflow/xps.rs"]
+mod xps;
 pub const INSPECTION_SCHEMA: &str = "plotx.inspect.v1";
 #[derive(Clone, Debug, Serialize)]
 pub struct InspectionReport {
@@ -32,6 +34,8 @@ pub struct InspectionReport {
     pub mass_spectrometry: Option<MassSpecReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xrd: Option<XrdReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xps: Option<XpsReport>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -41,6 +45,16 @@ pub struct XrdReport {
     pub wavelength_angstrom: Option<f64>,
     pub two_theta_range_deg: [f64; 2],
     pub point_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct XpsReport {
+    pub measurement_count: usize,
+    pub region_count: usize,
+    pub point_count: usize,
+    pub binding_energy_region_count: usize,
+    pub kinetic_only_region_count: usize,
+    pub regions: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -263,6 +277,13 @@ pub fn dataset_from_acquisition_with_equal_scale_preference(
                 source,
             )
         }
+        Acquisition::Xps(data) => {
+            let source = data.source.clone();
+            (
+                Dataset::Xps(Box::new(crate::state::XpsDataset::load(*data))),
+                source,
+            )
+        }
     }
 }
 
@@ -293,6 +314,10 @@ pub fn dataset_title(dataset: &Dataset) -> String {
             .name
             .clone()
             .unwrap_or_else(|| short_name(&data.data.source)),
+        Dataset::Xps(data) => data
+            .name
+            .clone()
+            .unwrap_or_else(|| short_name(&data.experiment.source)),
     }
 }
 
@@ -550,6 +575,7 @@ fn inspection_report(
                 afm: None,
                 mass_spectrometry: None,
                 xrd: None,
+                xps: None,
             };
         }
         Acquisition::Afm(data) => {
@@ -588,6 +614,7 @@ fn inspection_report(
                 }),
                 mass_spectrometry: None,
                 xrd: None,
+                xps: None,
             };
         }
         Acquisition::MassSpec(run) => {
@@ -625,6 +652,7 @@ fn inspection_report(
                         .collect(),
                 }),
                 xrd: None,
+                xps: None,
             };
         }
         Acquisition::Xrd(data) => {
@@ -656,7 +684,11 @@ fn inspection_report(
                     ],
                     point_count: data.len(),
                 }),
+                xps: None,
             };
+        }
+        Acquisition::Xps(experiment) => {
+            return xps::inspection_report(format, provenance, warnings, experiment);
         }
     };
     InspectionReport {
@@ -675,10 +707,11 @@ fn inspection_report(
         afm: None,
         mass_spectrometry: None,
         xrd: None,
+        xps: None,
     }
 }
 
-fn warning_report(warning: &LoadWarning) -> WarningReport {
+pub(super) fn warning_report(warning: &LoadWarning) -> WarningReport {
     let code = match warning.code {
         LoadWarningCode::ArchiveEntryFailed => "archive-entry-failed",
         LoadWarningCode::OptionalImaginaryMissing => "optional-imaginary-missing",
@@ -713,87 +746,5 @@ fn short_name(source: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use num_complex::Complex64;
-
-    fn acquisition() -> Acquisition {
-        Acquisition::D1(plotx_io::NmrData {
-            points: vec![Complex64::new(1.0, 0.0); 8],
-            domain: Domain::Frequency,
-            spectral_width_hz: 4_000.0,
-            observe_freq_mhz: 400.0,
-            carrier_ppm: 4.7,
-            nucleus: "1H".to_owned(),
-            source: "sample.dx".to_owned(),
-            group_delay: 0.0,
-        })
-    }
-
-    fn homonuclear_2d_acquisition() -> Acquisition {
-        let dimension = plotx_io::Dim {
-            spectral_width_hz: 4_000.0,
-            observe_freq_mhz: 400.0,
-            carrier_ppm: 4.7,
-            nucleus: "1H".to_owned(),
-            group_delay: 0.0,
-        };
-        Acquisition::D2(Box::new(plotx_io::NmrData2D {
-            data: vec![Complex64::new(1.0, 0.0); 16],
-            rows: 4,
-            cols: 4,
-            domain: Domain::Frequency,
-            direct: dimension.clone(),
-            indirect: dimension,
-            quad: plotx_io::QuadMode::Complex,
-            indirect_conjugate: false,
-            experiment: Some("cosy".to_owned()),
-            pseudo_axis: None,
-            diffusion: None,
-            nus: None,
-            source: "cosy".to_owned(),
-        }))
-    }
-
-    #[test]
-    fn canonical_conversion_and_default_canvas_share_dataset_identity() {
-        let (dataset, source) = dataset_from_acquisition(acquisition());
-        assert_eq!(dataset.kind_label(), "NMR 1D");
-        let canvas = build_default_canvas(&dataset, &source);
-        assert_eq!(canvas.dataset_ids(), vec![dataset.resource_id()]);
-        assert_eq!(canvas.objects.len(), 1);
-    }
-
-    #[test]
-    fn import_preference_seeds_one_persistent_plot_override() {
-        for (preference, expected) in [(true, true), (false, false)] {
-            let (dataset, source) = dataset_from_acquisition_with_equal_scale_preference(
-                homonuclear_2d_acquisition(),
-                preference,
-            );
-            let canvas = build_default_canvas(&dataset, &source);
-            let plot = canvas.objects[0].plot().expect("default plot");
-            assert_eq!(plot.axis_overrides.lock_aspect, Some(expected));
-            assert_eq!(plot.figure().lock_aspect, expected);
-        }
-    }
-
-    #[test]
-    fn inspection_contract_reports_canonical_shape_and_domain() {
-        let report = inspection_report(
-            DataFormat::JcampDx1D,
-            &Provenance {
-                selected_path: "sample.dx".into(),
-                data_path: "sample.dx".into(),
-                parameter_paths: Vec::new(),
-                companion_paths: Vec::new(),
-            },
-            &[],
-            &acquisition(),
-        );
-        assert_eq!(report.schema, INSPECTION_SCHEMA);
-        assert_eq!(report.dimension.count, 1);
-        assert_eq!(report.dimension.shape, vec![8]);
-        assert_eq!(report.domain, "frequency");
-    }
-}
+#[path = "workflow_tests.rs"]
+mod tests;
