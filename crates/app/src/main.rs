@@ -130,6 +130,7 @@ impl eframe::App for Shell {
         let ctx = ui.ctx().clone();
         observability::show_pending_crash_dialog();
         self.scale.drive(&mut self.app, &ctx, frame);
+        let ribbon_chrome = ui::current_ribbon_chrome(&ctx, frame);
         let recovery_blocked = self.pending_recovery.is_some();
         #[cfg(target_os = "macos")]
         if !recovery_blocked {
@@ -160,6 +161,7 @@ impl eframe::App for Shell {
             &mut self.batch_workflow,
             ui,
             recovery_blocked,
+            ribbon_chrome,
         );
         // Apply save completion after every edit-producing poll. This makes the
         // generation check below cover compute results that arrived this frame.
@@ -648,19 +650,12 @@ fn main() -> eframe::Result<()> {
     } else {
         DEFAULT_WINDOW_PT
     };
-    #[allow(unused_mut)]
-    let mut viewport = egui::ViewportBuilder::default()
+    let viewport = egui::ViewportBuilder::default()
         .with_inner_size(inner)
         .with_min_inner_size([720.0, 460.0])
         .with_title("PlotX")
         .with_icon(application_icon());
-    // Windows and Linux draw a VS Code style title bar (logo + menus + window
-    // controls) inside the content area; macOS keeps the native title bar and
-    // system menu.
-    #[cfg(not(target_os = "macos"))]
-    {
-        viewport = viewport.with_decorations(false);
-    }
+    let viewport = ui::configure_ribbon_viewport(viewport);
     let mut wgpu_options = eframe::egui_wgpu::WgpuConfiguration {
         desired_maximum_frame_latency: desired_maximum_frame_latency(),
         ..Default::default()

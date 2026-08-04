@@ -28,12 +28,10 @@ introduces the same regions in walkthrough form.
   and shows one page at a time. Its Processing page lists one pipeline for a 1D
   or pseudo-2D dataset and two, **F2 (direct)** then **F1 (indirect)**, for a
   true 2D spectrum. See [Processing](/guides/processing/).
-- **Ribbon** — the command strip under the title bar, organized into task
-  tabs (**Data**, **Process**, **Analyze**, **Figure**, **Arrange**,
-  **View**). It is a shortcut surface: everything on it is also in the menus
-  or the command palette.
-- **Context line** — the line below the Ribbon naming the active canvas,
-  object, dataset, task, and tool.
+- **Ribbon** — the command strip organized into task tabs (**Data**,
+  **Process**, **Analyze**, **Figure**, **Arrange**, **View**). On macOS its
+  task row also holds the native window controls and project name. It is a
+  shortcut surface: everything on it is also in the menus or command palette.
 - **Status bar** — the bottom strip, showing hints, progress, and selection
   details.
 

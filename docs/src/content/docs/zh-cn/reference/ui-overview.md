@@ -25,11 +25,9 @@ PlotX 的界面为英文；手册中加粗的英文词即界面上的原文标�
   **Process**、**Regions**、**Fit**、**Stats** 标签，一次显示一页。其
   Processing 页对 1D 与伪 2D 数据集显示一条管线，对真 2D 谱显示两条：
   **F2 (direct)** 与 **F1 (indirect)**。参见[数据处理](/zh-cn/guides/processing/)。
-- **Ribbon**——标题栏下方的命令条，按任务页签组织（**Data**、
-  **Process**、**Analyze**、**Figure**、**Arrange**、**View**）。它是
-  快捷入口：其上的一切也都能在菜单或命令面板中找到。
-- **上下文行**——Ribbon 下方的一行，显示当前画布、对象、数据集、任务
-  和工具。
+- **Ribbon**——按任务页签组织的命令条（**Data**、**Process**、
+  **Analyze**、**Figure**、**Arrange**、**View**）。在 macOS 上，其任务行
+  还承载原生窗口按钮和项目名。它是快捷入口：其上的一切也都能在菜单或命令面板中找到。
 - **状态栏**——底部条带，显示提示、进度和选择详情。
 
 ## 常见元素

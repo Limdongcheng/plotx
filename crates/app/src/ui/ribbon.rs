@@ -3,7 +3,10 @@
 //! idea borrowed from the supplied Office reference.
 
 use egui::text::LayoutJob;
-use egui::{Align2, Button, Color32, FontId, Label, RichText, TextFormat, Ui, Vec2};
+use egui::{
+    Align, Align2, Button, Color32, FontId, Label, Layout, PointerButton, RichText, Sense,
+    TextFormat, TextWrapMode, Ui, UiBuilder, Vec2, vec2,
+};
 use egui_phosphor::regular as icon;
 use plotx_core::actions::ZOrder;
 use plotx_core::export::ExportFormat;
@@ -17,15 +20,23 @@ const AUTO_COLLAPSE_WIDTH: f32 = 760.0;
 /// command in a group visually equal-sized.
 const TILE_HEIGHT: f32 = 46.0;
 const ROW_HEIGHT: f32 = 26.0;
+/// The native metric includes a little more bottom breathing room than the
+/// tab highlight needs visually; trim it so the highlight has equal margins.
+const MACOS_TITLE_ROW_BOTTOM_TRIM: f32 = 2.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RibbonDensity {
+pub(super) enum RibbonDensity {
     Collapsed,
     Compact,
     Full,
 }
 
-pub(crate) fn render(app: &mut PlotxApp, clipboard: &mut ClipboardTablePaste, ui: &mut Ui) {
+pub(crate) fn render(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    chrome: super::RibbonChrome,
+) {
     let width = ui.available_width();
     // Density is content-aware: measured against the active tab's groups, not a
     // fixed window-width breakpoint (which UI scaling would silently retune).
@@ -36,13 +47,11 @@ pub(crate) fn render(app: &mut PlotxApp, clipboard: &mut ClipboardTablePaste, ui
         let groups = groups_for_tab(&catalog, app.session.ui.ribbon_tab);
         density(width, app.session.ui.ribbon_expanded, &groups)
     };
-    task_row(app, clipboard, ui, density);
+    task_row(app, clipboard, ui, density, chrome);
     if density != RibbonDensity::Collapsed {
         ui.separator();
         command_row(app, clipboard, ui, density);
     }
-    ui.separator();
-    context_summary(app, ui);
 }
 
 fn task_row(
@@ -50,69 +59,159 @@ fn task_row(
     clipboard: &mut ClipboardTablePaste,
     ui: &mut Ui,
     density: RibbonDensity,
+    chrome: super::RibbonChrome,
 ) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = if density == RibbonDensity::Full {
-            8.0
-        } else {
-            3.0
-        };
-        for tab in WorkflowTab::ALL {
-            let selected = app.session.ui.ribbon_tab == tab;
-            let response = ui.selectable_label(
-                selected,
-                crate::typography::headline(tab.label()),
-            );
-            if response.clicked() {
-                select_workflow_tab(app, tab);
-                // Picking a task re-opens a manually collapsed command area;
-                // width-driven auto-collapse still wins in `density()`.
-                app.session.ui.ribbon_expanded = true;
-            }
-        }
+    let Some(traffic_lights) = chrome.macos_traffic_lights else {
+        // Windows and Linux retain the original Ribbon task-row layout; their
+        // separate custom title bar owns all window chrome and dragging.
+        ui.horizontal(|ui| render_task_row_contents(app, clipboard, ui, density, false, None));
+        return;
+    };
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let auto_collapsed =
-                density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded;
-            let collapse_label = if auto_collapsed {
-                format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
-            } else if app.session.ui.ribbon_expanded {
-                format!("{} Collapse ribbon", icon::CARET_UP)
+    let row_height =
+        (traffic_lights.y - MACOS_TITLE_ROW_BOTTOM_TRIM).max(ui.spacing().interact_size.y);
+    let vertical_spacing = ui.spacing().item_spacing.y;
+    // The next widget is the rule below the unified title row. Suppress the
+    // normal inter-widget gap so the rule sits on the row boundary; otherwise
+    // the selected tab appears high despite being centered.
+    ui.spacing_mut().item_spacing.y = 0.0;
+    let (row_rect, _) =
+        ui.allocate_exact_size(vec2(ui.available_width(), row_height), Sense::hover());
+    ui.spacing_mut().item_spacing.y = vertical_spacing;
+    // Register the background first; interactive children below take
+    // precedence while every remaining pixel continues to drag the window.
+    let drag = ui.interact(
+        row_rect,
+        ui.id().with("macos_unified_titlebar_drag"),
+        Sense::click_and_drag(),
+    );
+    if drag.drag_started_by(PointerButton::Primary) {
+        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+    }
+
+    let mut ui = ui.new_child(
+        UiBuilder::new()
+            .max_rect(row_rect)
+            .layout(Layout::left_to_right(Align::Center)),
+    );
+    let leading = traffic_lights.x + 4.0;
+    ui.add_space(leading);
+    let compact_controls = super::ribbon_chrome::controls_need_compacting(
+        app,
+        &ui,
+        density,
+        leading,
+        row_rect.width(),
+    );
+    let inline_title_width = super::ribbon_chrome::available_title_width(
+        app,
+        &ui,
+        density,
+        leading,
+        row_rect.width(),
+        compact_controls,
+    );
+    render_task_row_contents(
+        app,
+        clipboard,
+        &mut ui,
+        density,
+        compact_controls,
+        inline_title_width,
+    );
+}
+
+fn render_task_row_contents(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    density: RibbonDensity,
+    compact_controls: bool,
+    inline_title_width: Option<f32>,
+) {
+    ui.spacing_mut().item_spacing.x = if density == RibbonDensity::Full {
+        8.0
+    } else {
+        3.0
+    };
+    for tab in WorkflowTab::ALL {
+        let selected = app.session.ui.ribbon_tab == tab;
+        let response = ui.selectable_label(selected, crate::typography::headline(tab.label()));
+        if response.clicked() {
+            select_workflow_tab(app, tab);
+            // Picking a task re-opens a manually collapsed command area;
+            // width-driven auto-collapse still wins in `density()`.
+            app.session.ui.ribbon_expanded = true;
+        }
+    }
+
+    if let (Some(title), Some(width)) = (
+        super::ribbon_chrome::inline_project_title(app),
+        inline_title_width,
+    ) {
+        ui.separator();
+        let title = ui.add_sized(
+            [width, ui.spacing().interact_size.y],
+            Label::new(RichText::new(title).color(ui.visuals().weak_text_color()))
+                .truncate()
+                .sense(Sense::click_and_drag()),
+        );
+        if title.drag_started_by(PointerButton::Primary) {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        }
+    }
+
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let auto_collapsed = density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded;
+        let full_collapse_label = if auto_collapsed {
+            format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
+        } else if app.session.ui.ribbon_expanded {
+            format!("{} Collapse ribbon", icon::CARET_UP)
+        } else {
+            format!("{} Expand ribbon", icon::CARET_DOWN)
+        };
+        let collapse_label = if compact_controls {
+            if app.session.ui.ribbon_expanded {
+                icon::CARET_UP.to_owned()
             } else {
-                format!("{} Expand ribbon", icon::CARET_DOWN)
-            };
-            // The strip next to the task tabs stays quiet: chrome buttons show
-            // their frame only on hover so they read no heavier than the tabs.
-            let collapse = ui.add_enabled(
-                !auto_collapsed,
-                Button::new(collapse_label).frame_when_inactive(false),
-            );
-            let collapse = if auto_collapsed {
-                collapse.on_disabled_hover_text(
-                    "The ribbon collapses automatically at this width; use menus or Search commands",
-                )
-            } else {
-                collapse.on_hover_text("Collapse or expand the ribbon command area")
-            };
-            if collapse.clicked() {
-                app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
+                icon::CARET_DOWN.to_owned()
             }
-            update_button(app, ui);
-            let palette = commands::describe(app, CommandId::CommandPalette);
-            if ui
-                .add(
-                    Button::new(format!("{} Search commands", icon::MAGNIFYING_GLASS))
-                        .frame_when_inactive(false),
-                )
-                .on_hover_text(format!(
-                    "Search every command ({})",
-                    palette.shortcut.as_deref().unwrap_or("Ctrl+K")
-                ))
-                .clicked()
-            {
-                commands::execute(CommandId::CommandPalette, app, clipboard, ui.ctx());
-            }
-        });
+        } else {
+            full_collapse_label
+        };
+        // The strip next to the task tabs stays quiet: chrome buttons show
+        // their frame only on hover so they read no heavier than the tabs.
+        let collapse = ui.add_enabled(
+            !auto_collapsed,
+            Button::new(collapse_label).frame_when_inactive(false),
+        );
+        let collapse = if auto_collapsed {
+            collapse.on_disabled_hover_text(
+                "The ribbon collapses automatically at this width; use menus or Search commands",
+            )
+        } else {
+            collapse.on_hover_text("Collapse or expand the ribbon command area")
+        };
+        if collapse.clicked() {
+            app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
+        }
+        update_button(app, ui, compact_controls);
+        let palette = commands::describe(app, CommandId::CommandPalette);
+        let search_label = if compact_controls {
+            icon::MAGNIFYING_GLASS.to_owned()
+        } else {
+            format!("{} Search commands", icon::MAGNIFYING_GLASS)
+        };
+        if ui
+            .add(Button::new(search_label).frame_when_inactive(false))
+            .on_hover_text(format!(
+                "Search every command ({})",
+                palette.shortcut.as_deref().unwrap_or("Ctrl+K")
+            ))
+            .clicked()
+        {
+            commands::execute(CommandId::CommandPalette, app, clipboard, ui.ctx());
+        }
     });
 }
 
@@ -158,7 +257,7 @@ fn command_row(
     let mut used = 0.0;
     let mut shown = vec![false; groups.len()];
     for index in ranked {
-        let width = group_width(&groups[index].2, density) + 8.0;
+        let width = group_width(groups[index].0, &groups[index].2, density) + 8.0;
         if used + width <= budget {
             shown[index] = true;
             used += width;
@@ -208,7 +307,7 @@ fn ribbon_group(
     entries: Vec<&CommandDescriptor>,
     density: RibbonDensity,
 ) {
-    let width = group_width(&entries, density);
+    let width = group_width(title, &entries, density);
     let tile = tile_width(&entries);
     ui.allocate_ui_with_layout(
         Vec2::new(
@@ -232,7 +331,10 @@ fn ribbon_group(
                 }
             });
             ui.add_space(1.0);
-            ui.label(crate::typography::caption(title).color(ui.visuals().weak_text_color()));
+            ui.add(
+                Label::new(crate::typography::caption(title).color(ui.visuals().weak_text_color()))
+                    .wrap_mode(TextWrapMode::Extend),
+            );
         },
     );
 }
@@ -246,13 +348,13 @@ fn required_width(
 ) -> f32 {
     groups
         .iter()
-        .map(|(_, _, entries)| group_width(entries, density) + 8.0)
+        .map(|(title, _, entries)| group_width(title, entries, density) + 8.0)
         .sum()
 }
 
-fn group_width(entries: &[&CommandDescriptor], density: RibbonDensity) -> f32 {
+fn group_width(title: &str, entries: &[&CommandDescriptor], density: RibbonDensity) -> f32 {
     let spacing = 4.0 * entries.len().saturating_sub(1) as f32;
-    if density == RibbonDensity::Full {
+    let commands = if density == RibbonDensity::Full {
         tile_width(entries) * entries.len() as f32 + spacing
     } else {
         entries
@@ -260,7 +362,8 @@ fn group_width(entries: &[&CommandDescriptor], density: RibbonDensity) -> f32 {
             .map(|command| button_width(command))
             .sum::<f32>()
             + spacing
-    }
+    };
+    commands.max(title.chars().count() as f32 * 5.8 + 8.0)
 }
 
 /// All tiles in a group share the width of the widest short label, so a group
@@ -527,54 +630,6 @@ fn group_order(tab: WorkflowTab, group: &str) -> u8 {
     }
 }
 
-fn context_summary(app: &PlotxApp, ui: &mut Ui) {
-    let task = app.session.ui.ribbon_tab.label();
-    let tool = app.session.tool.label();
-    ui.horizontal(|ui| {
-        let summary = active_context(app);
-        let reserve = 150.0_f32.min(ui.available_width() * 0.4);
-        ui.add_sized(
-            [ui.available_width() - reserve, ui.spacing().interact_size.y],
-            Label::new(
-                RichText::new(summary)
-                    .small()
-                    .color(ui.visuals().weak_text_color()),
-            )
-            .truncate(),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(format!("{task} / {tool}")).small().strong());
-        });
-    });
-}
-
-fn active_context(app: &PlotxApp) -> String {
-    let Some(ci) = app
-        .session
-        .active_canvas
-        .filter(|&ci| ci < app.doc.canvases.len())
-    else {
-        return "Canvas — no active canvas".to_owned();
-    };
-    let canvas = &app.doc.canvases[ci];
-    let object_id = app
-        .session
-        .ui
-        .selection
-        .object()
-        .or_else(|| canvas.active_plot_object_id());
-    let object = object_id
-        .and_then(|id| canvas.object(id))
-        .map(|object| object.name.as_str())
-        .unwrap_or("No object");
-    let data = app
-        .active_dataset()
-        .filter(|&di| di < app.doc.datasets.len())
-        .map(|di| app.doc.datasets[di].display_name())
-        .unwrap_or_else(|| "no data".to_owned());
-    format!("{} › {object} · {data}", canvas.name)
-}
-
 /// The richest density whose content actually fits `width`: full icon-and-text
 /// tiles whenever the active tab's groups all fit, otherwise the compact icon
 /// row (whose own overflow moves whole groups into More). Below the absolute
@@ -593,12 +648,15 @@ fn density(
     }
 }
 
-fn update_button(app: &mut PlotxApp, ui: &mut Ui) {
+fn update_button(app: &mut PlotxApp, ui: &mut Ui, compact: bool) {
     use plotx_core::update::UpdateStatus;
     match app.session.updates.status().clone() {
         UpdateStatus::Downloading { percent, .. } => {
-            let text =
-                percent.map_or_else(|| "Updating…".to_owned(), |p| format!("Updating… {p}%"));
+            let text = if compact {
+                percent.map_or_else(|| icon::ARROW_CLOCKWISE.to_owned(), |p| format!("{p}%"))
+            } else {
+                percent.map_or_else(|| "Updating…".to_owned(), |p| format!("Updating… {p}%"))
+            };
             ui.label(
                 RichText::new(text)
                     .small()
@@ -607,7 +665,11 @@ fn update_button(app: &mut PlotxApp, ui: &mut Ui) {
         }
         UpdateStatus::Installed { version, .. }
             if ui
-                .button(format!("{} Restart to update", icon::ARROW_CLOCKWISE))
+                .button(if compact {
+                    icon::ARROW_CLOCKWISE.to_owned()
+                } else {
+                    format!("{} Restart to update", icon::ARROW_CLOCKWISE)
+                })
                 .on_hover_text(format!(
                     "PlotX {version} is installed and ready after restart"
                 ))
@@ -646,6 +708,12 @@ mod tests {
             density(full_need + 1.0, false, &groups),
             RibbonDensity::Collapsed
         );
+    }
+
+    #[test]
+    fn compact_groups_reserve_width_for_single_line_titles() {
+        assert!(group_width("Guides", &[], RibbonDensity::Compact) > ROW_HEIGHT);
+        assert!(group_width("Object", &[], RibbonDensity::Compact) > ROW_HEIGHT);
     }
 
     #[test]

@@ -25,6 +25,7 @@ mod primary_sidebar;
 pub(crate) mod processing_templates;
 pub(crate) mod properties;
 mod ribbon;
+mod ribbon_chrome;
 mod secondary_sidebar;
 mod settings_dialog;
 mod shortcuts;
@@ -42,6 +43,9 @@ use plotx_core::actions::Action;
 use plotx_core::export::{ExportPageScope, ExportScopeKind, ExportSettings};
 use plotx_core::operation::OperationOutcome;
 use plotx_core::state::{Interaction, PlotxApp, Selection};
+pub(crate) use ribbon_chrome::{
+    RibbonChrome, configure_viewport as configure_ribbon_viewport, current as current_ribbon_chrome,
+};
 pub(crate) use settings_dialog::apply_chrome_theme;
 use settings_dialog::{settings_window, sync_chrome_theme};
 use shortcuts::*;
@@ -53,6 +57,7 @@ pub fn render(
     batch_workflow: &mut batch_workflow::AutomationUi,
     ui: &mut Ui,
     input_blocked: bool,
+    ribbon_chrome: RibbonChrome,
 ) {
     let ctx = ui.ctx().clone();
     ctx.send_viewport_cmd(egui::ViewportCommand::Title(project_window_title(app)));
@@ -116,18 +121,10 @@ pub fn render(
         });
 
     egui::Panel::top("ribbon")
-        .frame(card_frame(
-            dark,
-            egui::Margin {
-                left: 8,
-                right: 8,
-                top: 4,
-                bottom: 4,
-            },
-        ))
+        .frame(ribbon_chrome::frame(dark))
         .show_separator_line(false)
         .show_inside(ui, |ui| {
-            ribbon::render(app, clipboard_table_paste, ui);
+            ribbon::render(app, clipboard_table_paste, ui, ribbon_chrome);
         });
 
     feedback_banner(app, ui, dark);
