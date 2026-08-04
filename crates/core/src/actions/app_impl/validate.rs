@@ -49,13 +49,19 @@ pub(super) fn validate_action(
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }
         }
-        Action::UpdateDatasetProcessing { dataset, after, .. } => {
+        Action::UpdateDatasetProcessing {
+            dataset,
+            before,
+            after,
+        } => {
             if !shape.has_dataset(app, *dataset) {
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
             }
             if let Some(index) = app.doc.dataset_index(*dataset) {
-                super::processing::validate_processing_state(&app.doc.datasets[index], after)
-                    .map_err(ActionApplyError::InvalidValue)?;
+                for state in [before, after] {
+                    super::processing::validate_processing_state(&app.doc.datasets[index], state)
+                        .map_err(ActionApplyError::InvalidValue)?;
+                }
             }
         }
         Action::SetMassSpecStream {

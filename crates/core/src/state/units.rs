@@ -286,6 +286,7 @@ pub enum ToolGroup {
     LineFit,
     Statistics,
     Electrophysiology,
+    Xps,
 }
 
 impl ToolGroup {
@@ -301,6 +302,7 @@ impl ToolGroup {
             ToolGroup::LineFit => "Peak Fit",
             ToolGroup::Statistics => "Statistics",
             ToolGroup::Electrophysiology => "Patch clamp",
+            ToolGroup::Xps => "XPS",
         }
     }
 }

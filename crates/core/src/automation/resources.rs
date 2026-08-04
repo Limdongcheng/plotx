@@ -7,7 +7,11 @@ use crate::state::{Dataset, PlotxApp};
 use std::collections::BTreeMap;
 
 mod mass_spec;
+mod statistics;
+mod xps;
 mod xrd;
+
+use statistics::add_statistics;
 
 pub const KIND_DATASET: &str = "plotx.dataset";
 pub const KIND_APP: &str = "plotx.app";
@@ -56,6 +60,7 @@ pub const CAP_FIELD_REGION_SERIES: &str = "field.region_series";
 pub const CAP_FIELD_MASS_CHROMATOGRAM: &str = "field.mass_spectrometry.chromatogram";
 pub const CAP_FIELD_MASS_SPECTRUM: &str = "field.mass_spectrometry.spectrum";
 pub const CAP_FIELD_XRD_PATTERN: &str = "field.xrd.pattern";
+pub const CAP_FIELD_XPS_SPECTRUM: &str = "field.xps.spectrum";
 
 /// Capability-oriented resource access. New resource types can participate by
 /// implementing this trait; query and tool orchestration do not dispatch on a
@@ -184,6 +189,7 @@ impl<'a> ProjectResourceProvider<'a> {
             }
             Dataset::MassSpec(dataset) => mass_spec::descriptor(dataset),
             Dataset::Xrd(dataset) => (vec![dataset.data.len()], vec!["deg".to_owned()], Vec::new()),
+            Dataset::Xps(dataset) => xps::descriptor(dataset),
         };
         children.extend(
             dataset
@@ -678,6 +684,7 @@ fn preview_dataset(
         }
         Dataset::MassSpec(dataset) => mass_spec::preview(dataset, target, limit, &mut statistics),
         Dataset::Xrd(dataset) => xrd::preview(dataset, limit, &mut statistics),
+        Dataset::Xps(dataset) => xps::preview(dataset, target, limit, &mut statistics)?,
     };
     let returned = total.min(limit);
     Ok(DataPreview {
@@ -689,29 +696,6 @@ fn preview_dataset(
         truncated: returned < total,
         statistics,
     })
-}
-
-fn add_statistics(out: &mut BTreeMap<String, f64>, values: &[f64]) {
-    let finite = values
-        .iter()
-        .copied()
-        .filter(|value| value.is_finite())
-        .collect::<Vec<_>>();
-    if finite.is_empty() {
-        return;
-    }
-    out.insert(
-        "min".to_owned(),
-        finite.iter().copied().fold(f64::INFINITY, f64::min),
-    );
-    out.insert(
-        "max".to_owned(),
-        finite.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-    );
-    out.insert(
-        "mean".to_owned(),
-        finite.iter().sum::<f64>() / finite.len() as f64,
-    );
 }
 
 fn add_typed_statistics(out: &mut BTreeMap<String, f64>, values: &[plotx_data::ScalarValue]) {

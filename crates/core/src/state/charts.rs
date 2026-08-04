@@ -14,6 +14,7 @@ pub enum DataDomain {
     Afm,
     MassSpectrometry,
     Xrd,
+    Xps,
 }
 
 /// How a domain's datasets combine when several are stacked onto one plot:
@@ -36,6 +37,7 @@ impl DataDomain {
             | DataDomain::Electrophysiology
             | DataDomain::MassSpectrometry => Some(StackKind::Line),
             DataDomain::Xrd => Some(StackKind::Line),
+            DataDomain::Xps => Some(StackKind::Line),
             DataDomain::Nmr2d => Some(StackKind::Field),
             DataDomain::PseudoNmr | DataDomain::Afm => None,
         }
@@ -92,6 +94,17 @@ static CHART_TYPES: &[ChartDescriptor] = &[
         ],
         needs_column: false,
         build: build_xrd_pattern,
+    },
+    ChartDescriptor {
+        id: "xps_spectrum",
+        name: "XPS spectrum",
+        recommended_domains: &[DataDomain::Xps],
+        required_capabilities: &[
+            crate::automation::CAP_FIELD_CURVE_1D,
+            crate::automation::CAP_FIELD_XPS_SPECTRUM,
+        ],
+        needs_column: false,
+        build: build_xps_spectrum,
     },
     ChartDescriptor {
         id: "mass_chromatogram",
@@ -407,6 +420,11 @@ fn build_nmr_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> 
 
 fn build_xrd_pattern(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
     Some(dataset.as_xrd()?.figure())
+}
+
+fn build_xps_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
+    let xps = dataset.as_xps()?;
+    xps.field_figure(xps.default_field()?)
 }
 
 fn build_mass_chromatogram(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {

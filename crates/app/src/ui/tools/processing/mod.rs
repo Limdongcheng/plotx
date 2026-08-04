@@ -179,6 +179,7 @@ fn add_step_menu(app: &mut PlotxApp, di: usize, axis: PhaseAxis, ui: &mut Ui) {
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
         | Dataset::Xrd(_) => return,
+        Dataset::Xps(_) => return,
     };
     let Some(pipeline) = dataset.axis_pipeline(axis) else {
         return;
@@ -329,6 +330,7 @@ fn apply_row_op(app: &mut PlotxApp, di: usize, axis: PhaseAxis, id: StepId, op: 
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
         | Dataset::Xrd(_) => return,
+        Dataset::Xps(_) => return,
     };
     let before = DatasetProcessingState::from_dataset(dataset);
     let mut after = before.clone();

@@ -74,6 +74,7 @@ impl Dataset {
             Dataset::Afm(data) => data.lineage.as_ref(),
             Dataset::MassSpec(data) => data.lineage.as_ref(),
             Dataset::Xrd(data) => data.lineage.as_ref(),
+            Dataset::Xps(data) => data.lineage.as_ref(),
         }
     }
 
@@ -86,6 +87,7 @@ impl Dataset {
             Dataset::Afm(data) => data.lineage = lineage,
             Dataset::MassSpec(data) => data.lineage = lineage,
             Dataset::Xrd(data) => data.lineage = lineage,
+            Dataset::Xps(data) => data.lineage = lineage,
         }
     }
 }

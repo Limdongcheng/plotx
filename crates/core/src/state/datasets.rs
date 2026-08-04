@@ -449,6 +449,7 @@ pub enum Dataset {
     Afm(Box<AfmDataset>),
     MassSpec(Box<MassSpecDataset>),
     Xrd(Box<XrdDataset>),
+    Xps(Box<XpsDataset>),
 }
 
 fn set_pipeline_pivot_frac(pipe: &mut AxisPipeline, frac: f64) {

@@ -344,7 +344,7 @@ pub(crate) fn load_and_note(app: &mut PlotxApp, path: &std::path::Path) {
 pub(crate) fn open_file(app: &mut PlotxApp) {
     if let Some(paths) = rfd::FileDialog::new()
         .add_filter(
-            "All supported data (*.mzML, *.rasx, *.raw, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
+            "All supported data (*.mzML, *.rasx, *.raw, *.vms, *.txt, *.spm, *.pfc, *.abf, *.jdf, fid, ser, *.zip, *.opj)",
             origin::OPEN_FILE_FILTER_EXTENSIONS,
         )
         .add_filter("Rigaku XRD (*.rasx, *.raw, *.txt)", &["rasx", "raw", "txt"])
@@ -356,6 +356,7 @@ pub(crate) fn open_file(app: &mut PlotxApp) {
         .add_filter("Axon Binary Format 2 (*.abf)", &["abf"])
         .add_filter("JEOL Delta (*.jdf)", &["jdf"])
         .add_filter("mzML mass spectrometry (*.mzML)", &["mzML"])
+        .add_filter("XPS (*.vms, CasaXPS *.txt)", &["vms", "txt"])
         .add_filter("Bruker TopSpin (fid, ser)", &["fid", "ser"])
         .add_filter("Archive (*.zip)", &["zip"])
         .add_filter("All files", &["*"])

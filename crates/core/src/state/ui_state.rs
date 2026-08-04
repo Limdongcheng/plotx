@@ -5,6 +5,10 @@ use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
+#[path = "ui_state_xps.rs"]
+mod xps;
+pub use xps::{PropertyTextEditState, XpsWorkbenchTab};
+
 mod task_dock;
 pub use task_dock::TaskDockTab;
 
@@ -266,21 +270,13 @@ impl PropertyFocus {
     }
 }
 
-/// Persistent buffer for one catalog text control. It is keyed by the exact
-/// target selection so changing objects cannot carry uncommitted text across.
-pub struct PropertyTextEditState {
-    pub property: crate::properties::PropertyId,
-    pub targets: Vec<crate::automation::TargetRef>,
-    pub text: String,
-    pub editing: bool,
-}
-
 pub struct UiState {
     /// The single in-flight direct-manipulation gesture; see [`Interaction`].
     pub interaction: Interaction,
     /// 2D axis targeted by the Phase panel and canvas drag; re-clamped when rendered.
     pub phase_axis: PhaseAxis,
     pub analysis_selection: Option<AnalysisSelection>,
+    pub xps_workbench_tab: XpsWorkbenchTab,
     /// Which table column the Peaks tool targets (ignored by single-trace domains).
     pub peak_column: Option<plotx_data::ColumnId>,
     pub wheel_zoom: Option<PendingViewportEdit>,
@@ -495,6 +491,7 @@ impl Default for UiState {
             interaction: Interaction::Idle,
             phase_axis: PhaseAxis::F2,
             analysis_selection: None,
+            xps_workbench_tab: XpsWorkbenchTab::default(),
             peak_column: None,
             wheel_zoom: None,
             wheel_property: None,
@@ -681,6 +678,7 @@ pub struct Session {
     /// Background update checker/downloader. Not serialized.
     pub updates: crate::update::UpdateService,
     pub line_fit_job: Option<crate::state::LineFitJob>,
+    pub xps_fit_job: Option<crate::state::XpsFitJob>,
     pub symmetry_audit_job: Option<crate::state::SymmetryAuditJob>,
     pub table_transform_job: Option<crate::state::TableTransformJob>,
     pub table_refresh_job: Option<crate::state::TableRefreshJob>,

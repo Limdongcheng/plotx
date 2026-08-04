@@ -229,7 +229,8 @@ impl PlotxApp {
             | Dataset::Table(_)
             | Dataset::Afm(_)
             | Dataset::MassSpec(_)
-            | Dataset::Xrd(_) => {
+            | Dataset::Xrd(_)
+            | Dataset::Xps(_) => {
                 return Err("The selected field does not contain an ordered series.".to_owned());
             }
         };

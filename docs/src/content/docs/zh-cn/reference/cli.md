@@ -23,6 +23,8 @@ plotx-cli process <input> --scheme <recipe.plotxproc> --output <path> [--format 
 `inspect` 检测、加载并描述一个受支持的数据集；`--json` 输出稳定的机器
 可读报告，便于脚本使用。对 ABF2 记录还会报告 ABF 版本、通道名称与单位、
 采样率、扫描数和协议名。
+对 XPS 还会报告测量位置数、谱区数、总点数、谱区名称，以及具有结合能轴或仅有
+动能轴的谱区数量。
 
 `process` 是"一次导入、一个[处理配方](/zh-cn/guides/templates/)、一次
 图形导出"的便捷路径。省略 `--format` 时按输出文件扩展名推断格式。

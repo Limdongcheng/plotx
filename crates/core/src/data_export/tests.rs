@@ -1,8 +1,15 @@
 use super::*;
 use crate::state::{
-    FloatSeries, PeakOrigin, StoredCurveFitAnalysis, materialized_float_series_table,
+    Dataset, FloatSeries, PeakOrigin, StoredCurveFitAnalysis, XpsDataset,
+    materialized_float_series_table,
 };
 use crate::{BaselineMode, IntegralMethod};
+use plotx_io::xps::{
+    ImportedXpsFit, ImportedXpsPeak, XpsEnergyKind, XpsExperiment, XpsMeasurement,
+    XpsMeasurementId, XpsRegion, XpsRegionId,
+};
+use plotx_processing::xps::{XpsProcessingStep, XpsStepKind};
+use plotx_processing::{NormalizeMethod, StepId, StepSource};
 
 fn request(content: DataExportContent) -> DataExportRequest {
     DataExportRequest {
@@ -43,6 +50,139 @@ fn one_dimensional_channels_use_processed_complex_values() {
     assert_eq!(
         value.to_text(Delimiter::Comma).unwrap(),
         "ppm,intensity\n1,5\n"
+    );
+}
+
+#[test]
+fn xps_export_keeps_raw_processed_fit_and_parameter_columns() {
+    let data = XpsDataSnapshot {
+        native_energy_ev: vec![1200.0, 1201.0],
+        binding_energy_ev: Some(vec![286.69, 285.69]),
+        raw_cps: vec![10.0, 20.0],
+        processed_energy_ev: vec![291.79, 290.79],
+        processed_cps: vec![0.5, 1.0],
+        fit_energy_ev: vec![291.79, 290.79],
+        background: vec![0.1, 0.1],
+        background_subtracted: vec![0.4, 0.9],
+        envelope: vec![0.5, 1.0],
+        residual: vec![0.0, 0.0],
+        components: vec![("Aromatic C".into(), vec![0.4, 0.9])],
+        background_model: Some("Shirley".into()),
+        background_window_ev: Some([290.79, 291.79]),
+        low_anchor_ev: Some([290.79, 290.79]),
+        high_anchor_ev: Some([291.79, 291.79]),
+    };
+    let text = snapshot(
+        SnapshotData::Xps(Box::new(data)),
+        DataExportContent::ProcessedData,
+    )
+    .to_text(Delimiter::Comma)
+    .unwrap();
+    assert!(text.contains("background_subtracted_cps"));
+    assert!(text.contains("Shirley"));
+
+    let rows = vec![XpsFitParameterRow {
+        provenance: "PlotX",
+        label: "Aromatic C".into(),
+        center_ev: 284.8,
+        fwhm_ev: 1.2,
+        area: 42.0,
+        fraction: Some(1.0),
+        r_squared: Some(0.999),
+        rmse: Some(0.01),
+        residual_lag1: Some(0.1),
+        hit_position_bound: Some(false),
+        hit_fwhm_bound: Some(true),
+        hit_area_bound: Some(false),
+        center_standard_error: Some(0.02),
+        center_confidence_95: Some([284.76, 284.84]),
+        fwhm_standard_error: Some(0.03),
+        fwhm_confidence_95: Some([1.14, 1.26]),
+        area_standard_error: Some(1.0),
+        area_confidence_95: Some([40.0, 44.0]),
+        maximum_correlation: Some(0.8),
+        bootstrap_center: Some([284.75, 284.8, 284.85]),
+        bootstrap_fwhm: Some([1.1, 1.2, 1.3]),
+        bootstrap_area: Some([39.0, 42.0, 45.0]),
+        bootstrap_fraction: Some([0.9, 1.0, 1.0]),
+    }];
+    let text = snapshot(SnapshotData::XpsFits(rows), DataExportContent::CurveFits)
+        .to_text(Delimiter::Tab)
+        .unwrap();
+    assert!(text.contains("position_standard_error"));
+    assert!(
+        text.contains("PlotX\tAromatic C\t284.8\t1.2\t42\t1\t0.999\t0.01\t0.1\tfalse\ttrue\tfalse")
+    );
+}
+
+#[test]
+fn processed_xps_export_omits_imported_curves_after_processing() {
+    let measurement = XpsMeasurementId(1);
+    let region = XpsRegionId(1);
+    let intensity = vec![1.0, 2.0, 4.0, 8.0, 7.0, 4.0, 2.0, 1.0];
+    let experiment = XpsExperiment {
+        source: "casa.txt".into(),
+        measurements: vec![XpsMeasurement {
+            id: measurement,
+            label: "CasaXPS export".into(),
+            position_mm: None,
+            metadata: Default::default(),
+        }],
+        regions: vec![XpsRegion {
+            id: region,
+            measurement,
+            name: "C 1s".into(),
+            native_energy_kind: XpsEnergyKind::Binding,
+            native_energy_ev: (283..=290).rev().map(f64::from).collect(),
+            binding_energy_ev: Some((283..=290).rev().map(f64::from).collect()),
+            intensity_cps: intensity.clone(),
+            counts: None,
+            photon_energy_ev: None,
+            dwell_time_s: None,
+            sweeps: None,
+            imported_fit: Some(ImportedXpsFit {
+                background_cps: vec![1.0; 8],
+                envelope_cps: intensity,
+                components_cps: vec![vec![0.0, 1.0, 3.0, 7.0, 6.0, 3.0, 1.0, 0.0]],
+                peaks: vec![ImportedXpsPeak {
+                    label: "Imported C 1s".into(),
+                    position_ev: 284.8,
+                    fwhm_ev: 1.2,
+                    area: 10.0,
+                    lineshape: Some("GL(30)".into()),
+                }],
+            }),
+            metadata: Default::default(),
+        }],
+        metadata: Default::default(),
+        import_warnings: Vec::new(),
+    };
+    let mut xps = XpsDataset::load(experiment);
+    xps.region_recipes
+        .get_mut(&region)
+        .unwrap()
+        .steps
+        .push(XpsProcessingStep {
+            id: StepId::new(1),
+            kind: XpsStepKind::Normalize(NormalizeMethod::MaxPeak),
+            enabled: true,
+            source: StepSource::User,
+        });
+    let dataset = Dataset::Xps(Box::new(xps));
+
+    let SnapshotData::Xps(snapshot) = capture_processed(&dataset).unwrap() else {
+        panic!("expected XPS processed-data snapshot")
+    };
+    assert!(snapshot.envelope.is_empty());
+    assert!(snapshot.residual.is_empty());
+    assert!(snapshot.components.is_empty());
+    assert_ne!(
+        snapshot.background_model.as_deref(),
+        Some("Imported (CasaXPS)")
+    );
+    assert_eq!(
+        capture_xps_fits(dataset.as_xps().unwrap()).unwrap()[0].provenance,
+        "Imported (CasaXPS)"
     );
 }
 

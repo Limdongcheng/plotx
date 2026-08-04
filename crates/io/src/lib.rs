@@ -12,6 +12,7 @@ pub mod nanoscope;
 pub mod origin;
 pub mod waters;
 pub mod xlsx;
+pub mod xps;
 pub mod xrd;
 
 pub use mass_spec::*;
@@ -36,6 +37,8 @@ pub enum DataFormat {
     RigakuRasx,
     RigakuRaw,
     RigakuProfile,
+    VamasXps,
+    CasaXpsText,
 }
 
 impl DataFormat {
@@ -54,6 +57,8 @@ impl DataFormat {
             Self::RigakuRasx => "rigaku-rasx",
             Self::RigakuRaw => "rigaku-raw-fi",
             Self::RigakuProfile => "rigaku-profile",
+            Self::VamasXps => "vamas-xps",
+            Self::CasaXpsText => "casaxps-text",
         }
     }
 }
@@ -354,6 +359,7 @@ pub enum Acquisition {
     Afm(Box<AfmData>),
     MassSpec(Box<MassSpecRun>),
     Xrd(Box<XrdData>),
+    Xps(Box<xps::XpsExperiment>),
 }
 
 /// A one-dimensional powder X-ray diffraction pattern.
@@ -606,6 +612,9 @@ pub enum IoError {
 
     #[error("invalid or unsupported mzML: {0}")]
     InvalidMzMl(String),
+
+    #[error("invalid XPS data: {0}")]
+    InvalidXps(String),
 }
 
 /// Load a dataset, auto-detecting the format from the path. A Bruker
@@ -613,6 +622,12 @@ pub enum IoError {
 /// `ser` file inside it; other files dispatch by extension, then by content.
 pub fn detect_format(path: impl AsRef<Path>) -> Result<DataFormat, IoError> {
     let path = path.as_ref();
+    if xps::is_vamas_xps(path) {
+        return Ok(DataFormat::VamasXps);
+    }
+    if xps::is_casaxps_text(path) {
+        return Ok(DataFormat::CasaXpsText);
+    }
     if waters::is_masslynx_raw(path) {
         return Ok(DataFormat::WatersMassLynxRaw);
     }
@@ -680,5 +695,7 @@ pub fn load_path(path: impl AsRef<Path>) -> Result<LoadResult, IoError> {
         DataFormat::RigakuRasx => xrd::load_rasx(path),
         DataFormat::RigakuRaw => xrd::load_raw(path),
         DataFormat::RigakuProfile => xrd::load_profile(path),
+        DataFormat::VamasXps => xps::load_vamas(path),
+        DataFormat::CasaXpsText => xps::load_casaxps(path),
     }
 }

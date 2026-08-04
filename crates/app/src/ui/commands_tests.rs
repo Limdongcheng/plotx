@@ -647,7 +647,7 @@ fn ribbon_separates_peak_and_curve_fit_tasks() {
             tab: WorkflowTab::Analyze,
             group: "Peak Fit",
             priority: 0,
-            applicability: Applicability::Always,
+            applicability: Applicability::ToolGroup(ToolGroup::LineFit),
         })
     );
     assert_eq!(

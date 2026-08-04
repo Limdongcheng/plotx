@@ -63,6 +63,7 @@ fn surface_shape(dataset: &Dataset) -> Option<SurfaceShape> {
         | Dataset::Afm(_)
         | Dataset::MassSpec(_)
         | Dataset::Xrd(_) => return None,
+        Dataset::Xps(_) => return None,
     };
     let axes = dataset
         .phase_axes()

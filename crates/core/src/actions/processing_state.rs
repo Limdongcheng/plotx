@@ -15,7 +15,8 @@ impl DatasetProcessingState {
             | Self::Table
             | Self::Electrophysiology(_)
             | Self::Afm
-            | Self::Xrd(_) => None,
+            | Self::Xrd(_)
+            | Self::Xps { .. } => None,
         }
     }
 
@@ -29,7 +30,11 @@ impl DatasetProcessingState {
                 group_delay_correct,
                 ..
             } => Some(group_delay_correct),
-            Self::Table | Self::Electrophysiology(_) | Self::Afm | Self::Xrd(_) => None,
+            Self::Table
+            | Self::Electrophysiology(_)
+            | Self::Afm
+            | Self::Xrd(_)
+            | Self::Xps { .. } => None,
         }
     }
 
@@ -49,6 +54,14 @@ impl DatasetProcessingState {
             Dataset::Afm(_) => Self::Afm,
             Dataset::MassSpec(_) => Self::Table,
             Dataset::Xrd(data) => Self::Xrd(data.params),
+            Dataset::Xps(xps) => Self::Xps {
+                active_region: xps.active_region,
+                measurement_shifts: xps.measurement_shifts.clone(),
+                region_recipes: xps.region_recipes.clone(),
+                fit_workspaces: xps.fit_workspaces.clone(),
+                fits: xps.fits.clone(),
+                next_step_id: xps.next_step_id,
+            },
         }
     }
 
@@ -63,7 +76,11 @@ impl DatasetProcessingState {
         let pipelines: Vec<&mut AxisPipeline> = match self {
             Self::Nmr { pipeline, .. } => vec![pipeline],
             Self::Nmr2D { params, .. } => vec![&mut params.f2, &mut params.f1],
-            Self::Table | Self::Electrophysiology(_) | Self::Afm | Self::Xrd(_) => Vec::new(),
+            Self::Table
+            | Self::Electrophysiology(_)
+            | Self::Afm
+            | Self::Xrd(_)
+            | Self::Xps { .. } => Vec::new(),
         };
         pipelines
             .into_iter()
@@ -159,6 +176,169 @@ impl DatasetProcessingState {
                 })?;
                 Ok(ProcessingRebuild::Rebuilt)
             }
+            (
+                Dataset::Xps(xps),
+                Self::Xps {
+                    active_region,
+                    measurement_shifts,
+                    region_recipes,
+                    fit_workspaces,
+                    fits,
+                    next_step_id,
+                },
+            ) => {
+                if xps.region(*active_region).is_none() {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "the selected XPS region no longer exists".into(),
+                    ));
+                }
+                let expected_measurements = xps
+                    .experiment
+                    .measurements
+                    .iter()
+                    .map(|measurement| measurement.id)
+                    .collect::<std::collections::BTreeSet<_>>();
+                let expected_workspaces = xps
+                    .experiment
+                    .regions
+                    .iter()
+                    .filter(|region| region.binding_energy_ev.is_some())
+                    .map(|region| region.id)
+                    .collect::<std::collections::BTreeSet<_>>();
+                if measurement_shifts
+                    .keys()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    != expected_measurements
+                {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "XPS measurement shift identities do not match the experiment".into(),
+                    ));
+                }
+                let expected_regions = xps
+                    .experiment
+                    .regions
+                    .iter()
+                    .map(|region| region.id)
+                    .collect::<std::collections::BTreeSet<_>>();
+                if region_recipes
+                    .keys()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    != expected_regions
+                {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "XPS region recipe identities do not match the experiment".into(),
+                    ));
+                }
+                if measurement_shifts.values().any(|shift| !shift.is_finite()) {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "XPS measurement energy shifts must be finite".into(),
+                    ));
+                }
+                let current_workspaces = fit_workspaces
+                    .keys()
+                    .copied()
+                    .collect::<std::collections::BTreeSet<_>>();
+                if current_workspaces != expected_workspaces
+                    || fits
+                        .keys()
+                        .any(|region| !expected_workspaces.contains(region))
+                {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "XPS fitting workspace identities do not match the experiment".into(),
+                    ));
+                }
+                let mut step_ids = std::collections::BTreeSet::new();
+                for recipe in region_recipes.values() {
+                    for step in &recipe.steps {
+                        if !step_ids.insert(step.id) || step.id.get() >= *next_step_id {
+                            return Err(ProcessingStateError::InvalidXps(
+                                "XPS processing step identities or allocator are invalid".into(),
+                            ));
+                        }
+                    }
+                }
+                if *next_step_id == 0 {
+                    return Err(ProcessingStateError::InvalidXps(
+                        "XPS processing step allocator is invalid".into(),
+                    ));
+                }
+                for region in &xps.experiment.regions {
+                    let Some(shift) = measurement_shifts.get(&region.measurement) else {
+                        return Err(ProcessingStateError::InvalidXps(format!(
+                            "measurement {} has no energy shift",
+                            region.measurement.0
+                        )));
+                    };
+                    let Some(recipe) = region_recipes.get(&region.id) else {
+                        return Err(ProcessingStateError::InvalidXps(format!(
+                            "region {} has no processing recipe",
+                            region.id.0
+                        )));
+                    };
+                    let (energy, applied_shift) = region
+                        .binding_energy_ev
+                        .as_ref()
+                        .map_or((&region.native_energy_ev, 0.0), |binding| (binding, *shift));
+                    plotx_processing::xps::process_region(
+                        energy,
+                        &region.intensity_cps,
+                        applied_shift,
+                        recipe,
+                    )
+                    .map_err(|message| ProcessingStateError::InvalidXps(message.into()))?;
+                    if region.binding_energy_ev.is_some() {
+                        let workspace = fit_workspaces.get(&region.id).ok_or_else(|| {
+                            ProcessingStateError::InvalidXps(format!(
+                                "region {} has no fit workspace",
+                                region.id.0
+                            ))
+                        })?;
+                        plotx_analysis::xps::validate_xps_constraints(&workspace.invocation)
+                            .map_err(|error| ProcessingStateError::InvalidXps(error.to_string()))?;
+                        let next = workspace
+                            .invocation
+                            .peaks
+                            .iter()
+                            .map(|peak| peak.id.0)
+                            .max()
+                            .unwrap_or(0)
+                            .saturating_add(1);
+                        if workspace.next_component_id < next {
+                            return Err(ProcessingStateError::InvalidXps(format!(
+                                "region {} has an invalid component allocator",
+                                region.id.0
+                            )));
+                        }
+                        for fit in fits.get(&region.id).into_iter().flatten() {
+                            if fit.region != region.id {
+                                return Err(ProcessingStateError::InvalidXps(format!(
+                                    "region {} has mismatched fit provenance",
+                                    region.id.0
+                                )));
+                            }
+                            plotx_analysis::xps::validate_xps_fit_summary(
+                                &fit.invocation,
+                                &fit.result,
+                            )
+                            .map_err(|error| {
+                                ProcessingStateError::InvalidXps(format!(
+                                    "region {} has an invalid fit: {error}",
+                                    region.id.0
+                                ))
+                            })?;
+                        }
+                    }
+                }
+                xps.active_region = *active_region;
+                xps.measurement_shifts = measurement_shifts.clone();
+                xps.region_recipes = region_recipes.clone();
+                xps.fit_workspaces = fit_workspaces.clone();
+                xps.fits = fits.clone();
+                xps.next_step_id = *next_step_id;
+                Ok(ProcessingRebuild::Rebuilt)
+            }
             (dataset, state) => Err(ProcessingStateError::KindMismatch {
                 dataset_kind: dataset.kind_label(),
                 state_kind: state.kind_label(),
@@ -174,6 +354,7 @@ impl DatasetProcessingState {
             Self::Electrophysiology(_) => "Electrophysiology",
             Self::Afm => "AFM",
             Self::Xrd(_) => "XRD",
+            Self::Xps { .. } => "XPS",
         }
     }
 }
@@ -194,4 +375,6 @@ pub enum ProcessingStateError {
     },
     #[error("cannot apply invalid {axis} processing pipeline: {details}")]
     InvalidPipeline { axis: &'static str, details: String },
+    #[error("cannot apply invalid XPS processing state: {0}")]
+    InvalidXps(String),
 }

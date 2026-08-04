@@ -15,6 +15,7 @@ mod statistics;
 mod statistics_config;
 mod symmetry;
 pub(crate) mod task_card;
+mod xps;
 
 use cursors::cursor_group;
 use curve_fit::curve_fit_group;
@@ -131,6 +132,7 @@ pub fn render_group(app: &mut PlotxApp, di: usize, group: ToolGroup, ui: &mut Ui
         ToolGroup::LineFit => line_fit_group(app, di, ui),
         ToolGroup::Statistics => statistics::statistics_group(app, di, ui),
         ToolGroup::Electrophysiology => electrophysiology::electrophysiology_group(app, di, ui),
+        ToolGroup::Xps => xps::xps_group(app, di, ui),
     }
 }
 

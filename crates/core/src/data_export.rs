@@ -14,7 +14,8 @@ mod write;
 mod xlsx;
 use write::{
     safe_name, write_1d, write_electrophysiology, write_fits, write_integrals_1d,
-    write_integrals_2d, write_peaks, write_pseudo_2d, write_true_2d, write_xrd,
+    write_integrals_2d, write_peaks, write_pseudo_2d, write_true_2d, write_xps, write_xps_fits,
+    write_xrd,
 };
 pub use xlsx::delimited_sidecar_path;
 
@@ -153,6 +154,12 @@ impl DataExportAvailability {
         }) {
             contents.push(DataExportContent::CurveFits);
         }
+        if dataset.as_xps().is_some_and(|xps| {
+            let region = xps.active_region();
+            region.imported_fit.is_some() || xps.current_fit(region.id).is_some()
+        }) {
+            contents.push(DataExportContent::CurveFits);
+        }
         Self {
             has_channel_choice: matches!(dataset, Dataset::Nmr(_) | Dataset::Nmr2D(_)),
             has_shape_choice: matches!(dataset, Dataset::Nmr2D(_)),
@@ -203,6 +210,9 @@ fn processed_data_available(dataset: &Dataset) -> bool {
         // option whose capture path can only return `ContentUnavailable`.
         Dataset::MassSpec(_) => false,
         Dataset::Xrd(xrd) => !xrd.processed.intensity.is_empty(),
+        Dataset::Xps(xps) => xps
+            .displayed_region(xps.active_region)
+            .is_some_and(|region| !region.intensity.is_empty()),
     }
 }
 
@@ -295,6 +305,54 @@ enum SnapshotData {
         two_theta_deg: Vec<f64>,
         intensity: Vec<f64>,
     },
+    Xps(Box<XpsDataSnapshot>),
+    XpsFits(Vec<XpsFitParameterRow>),
+}
+
+#[derive(Clone)]
+struct XpsDataSnapshot {
+    native_energy_ev: Vec<f64>,
+    binding_energy_ev: Option<Vec<f64>>,
+    raw_cps: Vec<f64>,
+    processed_energy_ev: Vec<f64>,
+    processed_cps: Vec<f64>,
+    fit_energy_ev: Vec<f64>,
+    background: Vec<f64>,
+    background_subtracted: Vec<f64>,
+    envelope: Vec<f64>,
+    residual: Vec<f64>,
+    components: Vec<(String, Vec<f64>)>,
+    background_model: Option<String>,
+    background_window_ev: Option<[f64; 2]>,
+    low_anchor_ev: Option<[f64; 2]>,
+    high_anchor_ev: Option<[f64; 2]>,
+}
+
+#[derive(Clone)]
+struct XpsFitParameterRow {
+    provenance: &'static str,
+    label: String,
+    center_ev: f64,
+    fwhm_ev: f64,
+    area: f64,
+    fraction: Option<f64>,
+    r_squared: Option<f64>,
+    rmse: Option<f64>,
+    residual_lag1: Option<f64>,
+    hit_position_bound: Option<bool>,
+    hit_fwhm_bound: Option<bool>,
+    hit_area_bound: Option<bool>,
+    center_standard_error: Option<f64>,
+    center_confidence_95: Option<[f64; 2]>,
+    fwhm_standard_error: Option<f64>,
+    fwhm_confidence_95: Option<[f64; 2]>,
+    area_standard_error: Option<f64>,
+    area_confidence_95: Option<[f64; 2]>,
+    maximum_correlation: Option<f64>,
+    bootstrap_center: Option<[f64; 3]>,
+    bootstrap_fwhm: Option<[f64; 3]>,
+    bootstrap_area: Option<[f64; 3]>,
+    bootstrap_fraction: Option<[f64; 3]>,
 }
 
 impl DataExportSnapshot {
@@ -330,13 +388,19 @@ impl DataExportSnapshot {
                     return Err(DataExportError::ContentUnavailable);
                 }
             }
-            DataExportContent::CurveFits => SnapshotData::Fits(
-                dataset
-                    .as_table()
-                    .ok_or(DataExportError::ContentUnavailable)?
-                    .curve_fit_analyses
-                    .clone(),
-            ),
+            DataExportContent::CurveFits => {
+                if let Some(xps) = dataset.as_xps() {
+                    SnapshotData::XpsFits(capture_xps_fits(xps)?)
+                } else {
+                    SnapshotData::Fits(
+                        dataset
+                            .as_table()
+                            .ok_or(DataExportError::ContentUnavailable)?
+                            .curve_fit_analyses
+                            .clone(),
+                    )
+                }
+            }
         };
         Ok(Self {
             dataset_name,
@@ -405,6 +469,8 @@ impl DataExportSnapshot {
                 two_theta_deg,
                 intensity,
             } => write_xrd(&mut writer, two_theta_deg, intensity)?,
+            SnapshotData::Xps(data) => write_xps(&mut writer, data)?,
+            SnapshotData::XpsFits(rows) => write_xps_fits(&mut writer, rows)?,
         }
         Ok(())
     }
@@ -479,6 +545,252 @@ fn capture_processed(dataset: &Dataset) -> Result<SnapshotData, DataExportError>
             two_theta_deg: xrd.data.two_theta_deg.clone(),
             intensity: xrd.processed.intensity.clone(),
         }),
+        Dataset::Xps(xps) => {
+            let region = xps.active_region();
+            let processed = xps
+                .displayed_region(region.id)
+                .ok_or(DataExportError::ContentUnavailable)?;
+            let current = xps.current_fit(region.id);
+            let imported = current
+                .is_none()
+                .then(|| xps.imported_fit_for_processed_region(region.id))
+                .flatten();
+            let (fit_energy_ev, background, corrected, envelope, residual, components) =
+                if let Some(fit) = current {
+                    (
+                        fit.result.energy_ev.clone(),
+                        fit.result.background.clone(),
+                        fit.result
+                            .intensity
+                            .iter()
+                            .zip(&fit.result.background)
+                            .map(|(y, bg)| y - bg)
+                            .collect(),
+                        fit.result.envelope.clone(),
+                        fit.result.residual.clone(),
+                        fit.result
+                            .components
+                            .iter()
+                            .enumerate()
+                            .map(|(index, values)| {
+                                (
+                                    fit.result.peaks.get(index).map_or_else(
+                                        || format!("component_{}", index + 1),
+                                        |peak| peak.label.clone(),
+                                    ),
+                                    values.clone(),
+                                )
+                            })
+                            .collect(),
+                    )
+                } else if let Some(fit) = imported {
+                    let shift = xps.energy_shift(region.measurement).unwrap_or(0.0);
+                    (
+                        region
+                            .binding_energy_ev
+                            .as_ref()
+                            .map(|energy| energy.iter().map(|value| value + shift).collect())
+                            .unwrap_or_default(),
+                        fit.background_cps.clone(),
+                        region
+                            .intensity_cps
+                            .iter()
+                            .zip(&fit.background_cps)
+                            .map(|(y, bg)| y - bg)
+                            .collect(),
+                        fit.envelope_cps.clone(),
+                        region
+                            .intensity_cps
+                            .iter()
+                            .zip(&fit.envelope_cps)
+                            .map(|(observed, predicted)| observed - predicted)
+                            .collect(),
+                        fit.components_cps
+                            .iter()
+                            .enumerate()
+                            .map(|(index, values)| {
+                                (
+                                    fit.peaks.get(index).map_or_else(
+                                        || format!("imported_component_{}", index + 1),
+                                        |peak| peak.label.clone(),
+                                    ),
+                                    values.clone(),
+                                )
+                            })
+                            .collect(),
+                    )
+                } else {
+                    let preview = xps.fit_workspaces.get(&region.id).and_then(|workspace| {
+                        plotx_analysis::xps::compute_xps_background(
+                            &processed.binding_energy_ev,
+                            &processed.intensity,
+                            &workspace.invocation.background,
+                        )
+                        .ok()
+                    });
+                    preview.map_or_else(
+                        || {
+                            (
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                            )
+                        },
+                        |preview| {
+                            (
+                                preview.energy_ev,
+                                preview.background,
+                                preview.corrected,
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                            )
+                        },
+                    )
+                };
+            let background_spec = current.map(|fit| &fit.invocation.background).or_else(|| {
+                imported
+                    .is_none()
+                    .then(|| {
+                        xps.fit_workspaces
+                            .get(&region.id)
+                            .map(|workspace| &workspace.invocation.background)
+                    })
+                    .flatten()
+            });
+            let background_model = if imported.is_some() {
+                Some("Imported (CasaXPS)".to_owned())
+            } else {
+                background_spec.map(|spec| background_model_label(&spec.model))
+            };
+            Ok(SnapshotData::Xps(Box::new(XpsDataSnapshot {
+                native_energy_ev: region.native_energy_ev.clone(),
+                binding_energy_ev: region.binding_energy_ev.clone(),
+                raw_cps: region.intensity_cps.clone(),
+                processed_energy_ev: processed.binding_energy_ev,
+                processed_cps: processed.intensity,
+                fit_energy_ev,
+                background,
+                background_subtracted: corrected,
+                envelope,
+                residual,
+                components,
+                background_model,
+                background_window_ev: background_spec.map(|spec| spec.window_ev),
+                low_anchor_ev: background_spec.map(|spec| spec.low_anchor_ev),
+                high_anchor_ev: background_spec.map(|spec| spec.high_anchor_ev),
+            })))
+        }
+    }
+}
+
+fn capture_xps_fits(
+    xps: &crate::state::XpsDataset,
+) -> Result<Vec<XpsFitParameterRow>, DataExportError> {
+    let region = xps.active_region();
+    if let Some(fit) = xps.current_fit(region.id) {
+        let maximum_correlation = fit
+            .result
+            .parameter_correlation
+            .as_ref()
+            .and_then(|matrix| {
+                matrix
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(row, values)| {
+                        values
+                            .iter()
+                            .enumerate()
+                            .filter(move |(column, _)| *column != row)
+                            .map(|(_, value)| value.abs())
+                    })
+                    .reduce(f64::max)
+            });
+        return Ok(fit
+            .result
+            .peaks
+            .iter()
+            .map(|peak| {
+                let bootstrap = fit.bootstrap.as_ref().and_then(|result| {
+                    result
+                        .peaks
+                        .iter()
+                        .find(|candidate| candidate.id == peak.id)
+                });
+                XpsFitParameterRow {
+                    provenance: "PlotX",
+                    label: peak.label.clone(),
+                    center_ev: peak.center_ev.value,
+                    fwhm_ev: peak.fwhm_ev.value,
+                    area: peak.area.value,
+                    fraction: Some(peak.fraction.value),
+                    r_squared: Some(fit.result.r_squared),
+                    rmse: Some(fit.result.rmse),
+                    residual_lag1: fit.result.residual_lag1,
+                    hit_position_bound: Some(peak.hit_position_bound),
+                    hit_fwhm_bound: Some(peak.hit_fwhm_bound),
+                    hit_area_bound: Some(peak.hit_area_bound),
+                    center_standard_error: peak.center_ev.standard_error,
+                    center_confidence_95: peak.center_ev.confidence_95,
+                    fwhm_standard_error: peak.fwhm_ev.standard_error,
+                    fwhm_confidence_95: peak.fwhm_ev.confidence_95,
+                    area_standard_error: peak.area.standard_error,
+                    area_confidence_95: peak.area.confidence_95,
+                    maximum_correlation,
+                    bootstrap_center: bootstrap.map(|value| value.center_ev),
+                    bootstrap_fwhm: bootstrap.map(|value| value.fwhm_ev),
+                    bootstrap_area: bootstrap.map(|value| value.area),
+                    bootstrap_fraction: bootstrap.map(|value| value.fraction),
+                }
+            })
+            .collect());
+    }
+    let imported = region
+        .imported_fit
+        .as_ref()
+        .ok_or(DataExportError::ContentUnavailable)?;
+    let total = imported.peaks.iter().map(|peak| peak.area).sum::<f64>();
+    Ok(imported
+        .peaks
+        .iter()
+        .map(|peak| XpsFitParameterRow {
+            provenance: "Imported (CasaXPS)",
+            label: peak.label.clone(),
+            center_ev: peak.position_ev,
+            fwhm_ev: peak.fwhm_ev,
+            area: peak.area,
+            fraction: (total > 0.0).then_some(peak.area / total),
+            r_squared: None,
+            rmse: None,
+            residual_lag1: None,
+            hit_position_bound: None,
+            hit_fwhm_bound: None,
+            hit_area_bound: None,
+            center_standard_error: None,
+            center_confidence_95: None,
+            fwhm_standard_error: None,
+            fwhm_confidence_95: None,
+            area_standard_error: None,
+            area_confidence_95: None,
+            maximum_correlation: None,
+            bootstrap_center: None,
+            bootstrap_fwhm: None,
+            bootstrap_area: None,
+            bootstrap_fraction: None,
+        })
+        .collect())
+}
+
+fn background_model_label(model: &plotx_analysis::xps::XpsBackgroundModel) -> String {
+    match model {
+        plotx_analysis::xps::XpsBackgroundModel::Linear => "Linear".into(),
+        plotx_analysis::xps::XpsBackgroundModel::Shirley { .. } => "Shirley".into(),
+        plotx_analysis::xps::XpsBackgroundModel::TougaardU2 { b_ev2, c_ev2 } => {
+            format!("Tougaard U2 (B={b_ev2}, C={c_ev2})")
+        }
     }
 }
 

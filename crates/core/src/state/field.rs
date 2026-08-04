@@ -9,11 +9,11 @@ use crate::automation::{
     CAP_FIELD_FORCE_CURVE, CAP_FIELD_LOCATION_SCALE, CAP_FIELD_MASS_CHROMATOGRAM,
     CAP_FIELD_MASS_SPECTRUM, CAP_FIELD_NMR_CONTOUR, CAP_FIELD_NMR_SIGNAL, CAP_FIELD_NMR_STACK,
     CAP_FIELD_NOISE_SCALE, CAP_FIELD_REGION_SERIES, CAP_FIELD_SCALAR_GRID_2D_REGULAR,
-    CAP_FIELD_SIGNED, CAP_FIELD_SWEEP_COLLECTION, CAP_FIELD_TABLE, CapabilityId,
+    CAP_FIELD_SIGNED, CAP_FIELD_SWEEP_COLLECTION, CAP_FIELD_TABLE, CAP_FIELD_XPS_SPECTRUM,
+    CapabilityId,
 };
 use plotx_figure::{
-    ColorSource, ContourBasePolicy, ContourLevelSpec, ContourSpec, ContourStyle,
-    EstimatorSelection, HeatmapSpec, ImageSpec, LineEncoding, PositiveFiniteF64, SeriesEncoding,
+    ContourBasePolicy, ContourStyle, EstimatorSelection, PositiveFiniteF64, SeriesEncoding,
     UnitInterval,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -333,6 +333,32 @@ impl super::Dataset {
                 fields
             }
             Self::Xrd(dataset) => dataset.field_descriptors(),
+            Self::Xps(dataset) => dataset
+                .experiment
+                .regions
+                .iter()
+                .filter_map(|region| {
+                    let id = dataset.field_for_region(region.id)?;
+                    let measurement = dataset
+                        .experiment
+                        .measurements
+                        .iter()
+                        .find(|candidate| candidate.id == region.measurement);
+                    let name = measurement.map_or_else(
+                        || region.name.clone(),
+                        |m| format!("{} — {}", m.label, region.name),
+                    );
+                    Some(descriptor(
+                        id,
+                        &super::xps_region_key(region.id),
+                        &name,
+                        capabilities(id, &[CAP_FIELD_XPS_SPECTRUM]),
+                        vec![region.intensity_cps.len()],
+                        vec!["eV".to_owned()],
+                        "line",
+                    ))
+                })
+                .collect(),
         }
     }
 
@@ -419,6 +445,12 @@ impl super::Dataset {
                 | SeriesEncoding::Image(_) => None,
             },
             Self::Xrd(dataset) => dataset.encoded_field_figure(encoding),
+            Self::Xps(dataset) => match encoding {
+                SeriesEncoding::Line(_) => dataset.field_figure(id),
+                SeriesEncoding::Contour(_)
+                | SeriesEncoding::Heatmap(_)
+                | SeriesEncoding::Image(_) => None,
+            },
         }
     }
 
@@ -434,7 +466,12 @@ impl super::Dataset {
         match self {
             Self::Nmr2D(nmr) => nmr.contour_figure_from_geometry(id, geometry, style),
             Self::Afm(afm) => afm.contour_figure_from_geometry(id, geometry, style),
-            _ => None,
+            Self::Nmr(_)
+            | Self::Table(_)
+            | Self::Electrophysiology(_)
+            | Self::MassSpec(_)
+            | Self::Xrd(_)
+            | Self::Xps(_) => None,
         }
     }
 
@@ -455,6 +492,7 @@ impl super::Dataset {
             Self::Afm(dataset) => &dataset.field_catalog,
             Self::MassSpec(dataset) => &dataset.field_catalog,
             Self::Xrd(dataset) => &dataset.field_catalog,
+            Self::Xps(dataset) => &dataset.field_catalog,
         }
     }
 
@@ -486,6 +524,12 @@ impl super::Dataset {
                 .collect(),
             Self::MassSpec(dataset) => mass_spec_dataset_field_keys(dataset),
             Self::Xrd(_) => vec!["xrd.intensity".to_owned()],
+            Self::Xps(dataset) => dataset
+                .experiment
+                .regions
+                .iter()
+                .map(|region| super::xps_region_key(region.id))
+                .collect(),
         }
     }
 }
@@ -696,100 +740,6 @@ fn absolute_base(peak: PeakMagnitude<'_>) -> PositiveFiniteF64 {
         .and_then(PositiveFiniteF64::new)
         .unwrap_or_else(|| PositiveFiniteF64::new(1.0).expect("literal base is valid"))
 }
-
-/// Materialize the complete persisted encoding for a newly created series.
-/// This is the sole default-policy factory; it never dispatches on `DataDomain`.
-pub fn default_encoding(
-    source_capabilities: &FieldCapabilities,
-    semantic_metadata: &FieldMetadata,
-    requested_chart: RequestedChart,
-    presentation_profile: &PresentationProfile,
-    peak: PeakMagnitude<'_>,
-) -> SeriesEncoding {
-    let requested_chart = match requested_chart {
-        RequestedChart::Auto => presentation_profile
-            .preferred_encoding
-            .or_else(|| match semantic_metadata.recommended_encoding() {
-                Some("line") => Some(RequestedChart::Line),
-                Some("contour") => Some(RequestedChart::Contour),
-                Some("heatmap") => Some(RequestedChart::Heatmap),
-                Some("image") => Some(RequestedChart::Image),
-                _ => None,
-            })
-            .unwrap_or_else(|| {
-                if source_capabilities.supports(&[CAP_FIELD_COLORED_RASTER_2D]) {
-                    RequestedChart::Image
-                } else if source_capabilities.supports(&[CAP_FIELD_SCALAR_GRID_2D_REGULAR]) {
-                    RequestedChart::Heatmap
-                } else {
-                    RequestedChart::Line
-                }
-            }),
-        concrete => concrete,
-    };
-
-    match requested_chart {
-        RequestedChart::Contour
-            if source_capabilities.supports(&[CAP_FIELD_SCALAR_GRID_2D_REGULAR]) =>
-        {
-            SeriesEncoding::Contour(default_contour_spec(source_capabilities, peak))
-        }
-        RequestedChart::Heatmap
-            if source_capabilities.supports(&[CAP_FIELD_SCALAR_GRID_2D_REGULAR]) =>
-        {
-            SeriesEncoding::Heatmap(HeatmapSpec::default())
-        }
-        RequestedChart::Image if source_capabilities.supports(&[CAP_FIELD_COLORED_RASTER_2D]) => {
-            SeriesEncoding::Image(ImageSpec::default())
-        }
-        RequestedChart::Line if source_capabilities.contains(CAP_FIELD_CURVE_1D) => {
-            SeriesEncoding::Line(LineEncoding::default())
-        }
-        // A stale explicit request must still materialize to a complete,
-        // applicable document encoding rather than carrying Auto forward.
-        RequestedChart::Auto
-        | RequestedChart::Line
-        | RequestedChart::Contour
-        | RequestedChart::Heatmap
-        | RequestedChart::Image
-            if source_capabilities.supports(&[CAP_FIELD_COLORED_RASTER_2D]) =>
-        {
-            SeriesEncoding::Image(ImageSpec::default())
-        }
-        RequestedChart::Auto
-        | RequestedChart::Line
-        | RequestedChart::Contour
-        | RequestedChart::Heatmap
-        | RequestedChart::Image
-            if source_capabilities.supports(&[CAP_FIELD_SCALAR_GRID_2D_REGULAR]) =>
-        {
-            SeriesEncoding::Heatmap(HeatmapSpec::default())
-        }
-        RequestedChart::Auto
-        | RequestedChart::Line
-        | RequestedChart::Contour
-        | RequestedChart::Heatmap
-        | RequestedChart::Image => SeriesEncoding::Line(LineEncoding::default()),
-    }
-}
-
-/// Pick the base policy this field's capabilities anchor best, most specific
-/// first, and fall back to a peak-anchored absolute level when none of them do.
-pub fn default_contour_base_kind(capabilities: &FieldCapabilities) -> &'static str {
-    if capabilities.contains(CAP_FIELD_NOISE_SCALE) {
-        CONTOUR_BASE_NOISE_FLOOR
-    } else if capabilities.contains(CAP_FIELD_LOCATION_SCALE) {
-        CONTOUR_BASE_BACKGROUND_SCALE
-    } else if capabilities.contains(CAP_FIELD_BOUNDED) {
-        CONTOUR_BASE_FRACTION_OF_RANGE
-    } else {
-        CONTOUR_BASE_ABSOLUTE
-    }
-}
-
-#[path = "field_defaults.rs"]
-mod defaults;
-pub use defaults::default_contour_spec;
 
 #[cfg(test)]
 #[path = "field_tests.rs"]

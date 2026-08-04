@@ -11,6 +11,11 @@ recomputed and previewed live. Large 2D spectra recompute without blocking the
 app — you can keep zooming, panning, and editing while the updated spectrum
 appears moments later.
 
+XPS uses its own ordered recipe per spectrum region rather than the NMR
+pipeline. It contains an energy window, smoothing, and normalization, while
+charge correction is shared by all regions at one measurement position. See
+[XPS](/guides/xps/).
+
 ## A typical 1D spectrum
 
 A newly imported time-domain 1D dataset already carries the standard pipeline —

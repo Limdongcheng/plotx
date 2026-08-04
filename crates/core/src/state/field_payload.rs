@@ -133,6 +133,20 @@ impl super::Dataset {
                     })
                 })
             }
+            Self::Xps(dataset) => {
+                let region = dataset.region_for_field(id)?;
+                let processed = dataset.displayed_region(region.id)?;
+                Some(FieldPayload::Curve1D(Curve1D {
+                    x: Arc::from(processed.binding_energy_ev),
+                    values: Arc::from(
+                        processed
+                            .intensity
+                            .into_iter()
+                            .map(|value| value as f32)
+                            .collect::<Vec<_>>(),
+                    ),
+                }))
+            }
             Self::MassSpec(dataset) => dataset.field_values(id).map(|(_, _, _, points, _)| {
                 FieldPayload::Curve1D(Curve1D {
                     x: Arc::from(points.iter().map(|point| point[0]).collect::<Vec<_>>()),
@@ -212,6 +226,9 @@ impl super::Dataset {
             Self::Xrd(dataset) => {
                 (dataset.field_id() == Some(id)).then_some(FieldRepresentation::Curve1D)
             }
+            Self::Xps(dataset) => dataset
+                .region_for_field(id)
+                .map(|_| FieldRepresentation::Curve1D),
         }
     }
 
@@ -269,6 +286,7 @@ impl super::Dataset {
                             version: 1,
                         }),
                     ),
+                    Self::Xps(dataset) => (dataset.experiment.source.as_str(), None),
                 };
                 FieldCatalog::make_provenance(source, id, algorithm)
             })

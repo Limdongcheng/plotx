@@ -13,6 +13,7 @@ pub mod phase;
 mod preview;
 pub mod slice;
 pub mod timeseries;
+pub mod xps;
 pub mod xrd;
 
 pub use output::{Processed1D, TimeTrace};
@@ -244,7 +245,7 @@ pub struct ReferenceParams {
     pub target_ppm: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SmoothMethod {
     MovingAverage {
         window: u16,
@@ -263,7 +264,7 @@ impl SmoothMethod {
     };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum NormalizeMethod {
     /// Scale so the tallest peak magnitude is 1.
     MaxPeak,
@@ -313,7 +314,7 @@ impl StepId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum StepSource {
     Default,
     User,

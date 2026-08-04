@@ -21,5 +21,6 @@ mod series_reduce;
 pub mod stack;
 pub mod statistics;
 pub mod symmetry;
+pub mod xps;
 
 pub use stack::SpectrumStack;
