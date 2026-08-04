@@ -28,20 +28,21 @@ On Windows and Linux, the title bar holds the app logo, the **File**, **Edit**,
 **View**, **Insert**, and **Help** menus, and the window controls in one row.
 Drag its empty area to move the window, or double-click to maximize. On macOS
 these commands use the system menu bar, including the standard PlotX
-application and Window menus.
+application and Window menus. The native traffic-light controls share the top
+row with the Ribbon task tabs and project name, leaving more height for the
+workspace.
 
 **File** keeps an **Open Recent** submenu with the files, folders, and projects
 you opened or saved most recently; the same entries are listed on the welcome
 screen while no data is loaded. **Help** contains **User Manual**, which opens
 this documentation in your browser.
 
-The Ribbon below it is a focused shortcut surface, not a second complete menu.
+The Ribbon is a focused shortcut surface, not a second complete menu.
 Choose **Data**, **Process**, **Analyze**, **Figure**, **Arrange**, or **View** to see
 grouped frequent commands for that stage. Use **Collapse ribbon** to collapse it to the task tabs.
 At narrower window widths, whole low-priority groups move into **More**; at the
 minimum width the command area folds automatically instead of shrinking text or
-buttons. The context line below the Ribbon names the active canvas, object,
-dataset, task, and tool.
+buttons.
 
 **Search commands** opens the command palette. Menu items, Ribbon buttons,
 shortcuts, and palette rows share the same enabled and selected states.
