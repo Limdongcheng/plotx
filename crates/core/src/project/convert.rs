@@ -12,6 +12,7 @@ pub enum DatasetBlob<'a> {
     Electrophysiology(&'a crate::state::ElectrophysiologyDataset),
     Afm(&'a plotx_io::AfmData),
     MassSpec(&'a crate::state::MassSpecDataset),
+    Xrd(&'a plotx_io::XrdData),
 }
 
 pub struct DatasetObjects<'a> {
@@ -279,6 +280,39 @@ pub fn dataset_to_objects<'a>(
             };
             DatasetObjects::primary(data, DatasetBlob::MassSpec(mass_spec), recipe)
         }
+        Dataset::Xrd(xrd) => {
+            let data = DataObject {
+                id: data_id.to_owned(),
+                role: "data".to_owned(),
+                classification: Classification {
+                    domain: "diffraction".to_owned(),
+                    technique: Some("powder_xrd".to_owned()),
+                    object: "pattern".to_owned(),
+                },
+                label: xrd.name.clone(),
+                dimensions: Vec::new(),
+                payload: Payload {
+                    storage: STORAGE_XRD_V1.to_owned(),
+                    blob: format!("objects/{data_id}/data.bin"),
+                    shape: vec![xrd.data.len()],
+                    domain: "two_theta".to_owned(),
+                },
+                extensions: serde_json::json!({ "plotx.fields": &xrd.field_catalog }),
+            };
+            let recipe = RecipeObject {
+                id: recipe_id.to_owned(),
+                role: "recipe".to_owned(),
+                classification: Classification {
+                    domain: "diffraction".to_owned(),
+                    technique: Some("powder_xrd".to_owned()),
+                    object: "processing_recipe".to_owned(),
+                },
+                input: data_id.to_owned(),
+                parameters: RecipeParameters::default(),
+                extensions: serde_json::json!({ "plotx.xrd": { "processing": &xrd.params } }),
+            };
+            DatasetObjects::primary(data, DatasetBlob::Xrd(&xrd.data), recipe)
+        }
     })
 }
 pub fn object_to_dataset(
@@ -286,6 +320,55 @@ pub fn object_to_dataset(
     data: &DataObject,
     recipe: &RecipeObject,
 ) -> Result<Dataset> {
+    if data.classification.domain == "diffraction"
+        && data.classification.technique.as_deref() == Some("powder_xrd")
+        && data.classification.object == "pattern"
+    {
+        if data.payload.storage != STORAGE_XRD_V1 {
+            return Err(ProjectError::Unsupported(format!(
+                "XRD payload storage {}",
+                data.payload.storage
+            )));
+        }
+        // Named generic decoder functions do not satisfy the higher-ranked
+        // lifetime required by `ZipFile`; the closure reborrows each entry.
+        #[allow(clippy::redundant_closure)]
+        let decoded = read_entry(
+            zip,
+            &data.payload.blob,
+            "XRD payload",
+            ProjectLoadLimits::default().max_entry_bytes,
+            |reader| super::xrd_convert::decode(reader),
+        )?;
+        if data.payload.shape.as_slice() != [decoded.len()] {
+            return Err(ProjectError::Invalid(format!(
+                "XRD payload shape {:?} does not match {} decoded points",
+                data.payload.shape,
+                decoded.len()
+            )));
+        }
+        decoded
+            .validate()
+            .map_err(|error| ProjectError::Invalid(error.to_owned()))?;
+        let mut dataset = crate::state::XrdDataset::load(decoded);
+        dataset.field_catalog = read_field_catalog(data)?;
+        dataset.name = data.label.clone();
+        if let Some(value) = recipe
+            .extensions
+            .get("plotx.xrd")
+            .and_then(|value| value.get("processing"))
+        {
+            let processing = serde_json::from_value(value.clone())?;
+            dataset
+                .apply_processing(processing)
+                .map_err(|error| ProjectError::Invalid(error.to_string()))?;
+        }
+        let dataset = Dataset::Xrd(Box::new(dataset));
+        dataset
+            .validate_field_catalog()
+            .map_err(ProjectError::Invalid)?;
+        return Ok(dataset);
+    }
     // Named generic decoder functions do not satisfy the higher-ranked lifetime
     // required by `ZipFile`; closures let the compiler reborrow each entry.
     #[allow(clippy::redundant_closure)]

@@ -41,6 +41,7 @@ mod pipeline_conv;
 mod scheme;
 mod templates;
 mod typed_table;
+mod xrd_convert;
 
 pub use codec::*;
 pub use convert::*;
@@ -64,6 +65,7 @@ const STORAGE_TABLE_V1: &str = "plotx_table_envelope_v1";
 const STORAGE_AFM_V1: &str = "plotx_afm_v1";
 const STORAGE_DOSY_V1: &str = "plotx_dosy_v1";
 const STORAGE_MASS_SPEC_V1: &str = "plotx_mass_spec_v1";
+const STORAGE_XRD_V1: &str = "plotx_xrd_v1";
 const SNAPSHOT_KIND: &str = "editable_figure_v1";
 
 type Result<T> = std::result::Result<T, ProjectError>;
@@ -741,3 +743,5 @@ mod symmetry_tests;
 mod tests;
 #[cfg(test)]
 mod tests_charts;
+#[cfg(test)]
+mod xrd_tests;

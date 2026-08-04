@@ -332,6 +332,7 @@ impl super::Dataset {
                 }
                 fields
             }
+            Self::Xrd(dataset) => dataset.field_descriptors(),
         }
     }
 
@@ -417,6 +418,7 @@ impl super::Dataset {
                 | SeriesEncoding::Heatmap(_)
                 | SeriesEncoding::Image(_) => None,
             },
+            Self::Xrd(dataset) => dataset.encoded_field_figure(encoding),
         }
     }
 
@@ -432,7 +434,7 @@ impl super::Dataset {
         match self {
             Self::Nmr2D(nmr) => nmr.contour_figure_from_geometry(id, geometry, style),
             Self::Afm(afm) => afm.contour_figure_from_geometry(id, geometry, style),
-            Self::Nmr(_) | Self::Table(_) | Self::Electrophysiology(_) | Self::MassSpec(_) => None,
+            _ => None,
         }
     }
 
@@ -452,15 +454,15 @@ impl super::Dataset {
             Self::Electrophysiology(dataset) => &dataset.field_catalog,
             Self::Afm(dataset) => &dataset.field_catalog,
             Self::MassSpec(dataset) => &dataset.field_catalog,
+            Self::Xrd(dataset) => &dataset.field_catalog,
         }
     }
 
     fn all_field_keys(&self) -> Vec<String> {
         match self {
             Self::Nmr(_) => vec!["nmr.real".to_owned()],
-            // These keys stay allocated while the processing state is pseudo-2D.
-            // A binding to an inactive field is rejected on save/load instead of
-            // being reassigned to the stack field.
+            // Keep inactive 2D keys allocated so save/load rejects stale bindings
+            // instead of silently reassigning them to the stack field.
             Self::Nmr2D(_) => vec![
                 "nmr.real".to_owned(),
                 "nmr.magnitude".to_owned(),
@@ -483,6 +485,7 @@ impl super::Dataset {
                 )
                 .collect(),
             Self::MassSpec(dataset) => mass_spec_dataset_field_keys(dataset),
+            Self::Xrd(_) => vec!["xrd.intensity".to_owned()],
         }
     }
 }

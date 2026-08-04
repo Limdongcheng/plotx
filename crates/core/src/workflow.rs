@@ -30,6 +30,17 @@ pub struct InspectionReport {
     pub afm: Option<AfmReport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mass_spectrometry: Option<MassSpecReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xrd: Option<XrdReport>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct XrdReport {
+    pub instrument: Option<String>,
+    pub target: Option<String>,
+    pub wavelength_angstrom: Option<f64>,
+    pub two_theta_range_deg: [f64; 2],
+    pub point_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -245,6 +256,13 @@ pub fn dataset_from_acquisition_with_equal_scale_preference(
                 source,
             )
         }
+        Acquisition::Xrd(data) => {
+            let source = data.source.clone();
+            (
+                Dataset::Xrd(Box::new(crate::state::XrdDataset::load(*data))),
+                source,
+            )
+        }
     }
 }
 
@@ -271,6 +289,10 @@ pub fn dataset_title(dataset: &Dataset) -> String {
             .name
             .clone()
             .unwrap_or_else(|| short_name(&data.run.source)),
+        Dataset::Xrd(data) => data
+            .name
+            .clone()
+            .unwrap_or_else(|| short_name(&data.data.source)),
     }
 }
 
@@ -527,6 +549,7 @@ fn inspection_report(
                 }),
                 afm: None,
                 mass_spectrometry: None,
+                xrd: None,
             };
         }
         Acquisition::Afm(data) => {
@@ -564,6 +587,7 @@ fn inspection_report(
                     samples_per_curve: force.map(|force| force.samples_per_curve),
                 }),
                 mass_spectrometry: None,
+                xrd: None,
             };
         }
         Acquisition::MassSpec(run) => {
@@ -600,6 +624,38 @@ fn inspection_report(
                         .map(|channel| channel.description.clone())
                         .collect(),
                 }),
+                xrd: None,
+            };
+        }
+        Acquisition::Xrd(data) => {
+            return InspectionReport {
+                schema: INSPECTION_SCHEMA,
+                format: format.as_str().to_owned(),
+                provenance: ProvenanceReport {
+                    selected_path: provenance.selected_path.clone(),
+                    data_path: provenance.data_path.clone(),
+                    parameter_paths: provenance.parameter_paths.clone(),
+                    companion_paths: provenance.companion_paths.clone(),
+                },
+                dimension: DimensionReport {
+                    count: 1,
+                    shape: vec![data.len()],
+                },
+                domain: "xrd".to_owned(),
+                warnings: warnings.iter().map(warning_report).collect(),
+                electrophysiology: None,
+                afm: None,
+                mass_spectrometry: None,
+                xrd: Some(XrdReport {
+                    instrument: data.instrument.clone(),
+                    target: data.target.clone(),
+                    wavelength_angstrom: data.wavelength_angstrom,
+                    two_theta_range_deg: [
+                        data.two_theta_deg.first().copied().unwrap_or(0.0),
+                        data.two_theta_deg.last().copied().unwrap_or(0.0),
+                    ],
+                    point_count: data.len(),
+                }),
             };
         }
     };
@@ -618,6 +674,7 @@ fn inspection_report(
         electrophysiology: None,
         afm: None,
         mass_spectrometry: None,
+        xrd: None,
     }
 }
 

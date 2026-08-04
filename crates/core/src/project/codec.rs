@@ -258,6 +258,7 @@ pub fn write_dataset_blob(
         }
         DatasetBlob::Afm(data) => super::afm_convert::write_afm(zip, data),
         DatasetBlob::MassSpec(dataset) => super::mass_spec_convert::write(zip, dataset),
+        DatasetBlob::Xrd(data) => super::xrd_convert::write(zip, data),
     }
 }
 

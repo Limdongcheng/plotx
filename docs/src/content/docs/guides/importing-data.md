@@ -13,6 +13,7 @@ no conversion step is needed.
 | JEOL Delta | `.jdf` | 1D, 2D, and pseudo-2D (DOSY / T1 / T2) |
 | Bruker TopSpin | `fid` / `ser` directories | 1D and 2D |
 | Waters MassLynx RAW | `.raw` directory | Validated low-resolution runs, including SQD2 data |
+| Rigaku powder XRD | `.rasx`, FI `.raw`, RAS_RAW `.txt` | Diffraction pattern, acquisition metadata, and attenuation when available |
 | mzML | `.mzML` | Centroided or profile LC–MS spectra with 32-bit or 64-bit arrays, uncompressed or zlib-compressed |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | Images, force curves, force-volume and PeakForce Capture cubes |
 | JCAMP-DX | `.dx` / `.jdx` / `.jcamp` | 1D frequency-domain NMR spectra |
@@ -45,6 +46,23 @@ minutes. File-supplied chromatograms are not imported.
 The importer accepts little-endian 32-bit and 64-bit floating-point m/z and
 intensity arrays with no compression or zlib compression. Numpress, big-endian
 arrays, and spectra without both required arrays stop the import with an error.
+
+## Rigaku powder XRD
+
+Open the `.rasx` file when it is available. PlotX reads the measured 2theta,
+intensity, and attenuation columns together with the instrument name, X-ray
+target, Kalpha1 wavelength, tube voltage/current, scan step, and scan speed.
+The initial page is an XRD pattern. **Processing** provides optional SNIP
+background subtraction, Savitzky-Golay smoothing, and normalization by maximum
+intensity or integrated area; these settings and the original observations are
+saved in the PlotX project.
+
+Rigaku `FI`-layout `.raw` files and profile `.txt` exports whose header identifies
+`RAS_RAW` also open as XRD. The binary reader retains the scan ruler, intensity,
+X-ray target, Kalpha1 wavelength, tube voltage/current, and scan speed. Other
+`.raw` signatures are rejected explicitly because the extension is shared by
+incompatible vendor formats. Other `.txt` files keep the normal table-import
+preview, so a generic numeric table is not silently reclassified.
 
 ## Waters MassLynx RAW
 

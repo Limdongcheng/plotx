@@ -145,6 +145,7 @@ pub fn canvas_to_view(
                         Dataset::Electrophysiology(_) => "line_plot",
                         Dataset::Afm(_) => "heatmap",
                         Dataset::MassSpec(_) => "line_plot",
+                        Dataset::Xrd(_) => "line_plot",
                     };
                     let series = plot
                         .binding

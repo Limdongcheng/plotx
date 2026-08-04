@@ -1,4 +1,4 @@
-use egui::{Area, Button, Order, Ui};
+use egui::{Button, Ui};
 use egui_phosphor::regular as icon;
 use plotx_core::state::{Dataset, PlotxApp, TableDataset, TaskDockTab};
 
@@ -60,65 +60,63 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
     let mut close = false;
     let mut toggle_collapse = false;
 
-    Area::new(egui::Id::new("curve_fit_task_card"))
-        .order(Order::Foreground)
-        .fixed_pos(pos)
-        .show(host.ctx(), |ui| {
-            ui.set_width(width);
-            crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
-                if task_card::tab_bar(app, TaskDockTab::CurveFit, ui) {
-                    ui.separator();
-                }
-                let table = app.doc.datasets[di].as_table().unwrap();
-                let curves = table.series_bindings.len();
-                let points = table.typed_state.envelope.revision.snapshot.row_count;
-                ui.horizontal(|ui| {
-                    crate::typography::headline_label(ui, "Curve Fit");
-                    let curve_count = if curves == 1 {
-                        "1 curve".to_owned()
+    let area_id = egui::Id::new("curve_fit_task_card");
+    task_card::area(host, area_id, pos).show(host.ctx(), |ui| {
+        ui.set_width(width);
+        crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
+            if task_card::tab_bar(app, TaskDockTab::CurveFit, ui) {
+                ui.separator();
+            }
+            let table = app.doc.datasets[di].as_table().unwrap();
+            let curves = table.series_bindings.len();
+            let points = table.typed_state.envelope.revision.snapshot.row_count;
+            task_card::header(ui, area_id, |ui| {
+                crate::typography::headline_label(ui, "Curve Fit");
+                let curve_count = if curves == 1 {
+                    "1 curve".to_owned()
+                } else {
+                    format!("{curves} curves")
+                };
+                ui.weak(format!("{curve_count} · {points} points each"));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(icon::X)
+                        .on_hover_text("Close Curve Fit")
+                        .clicked()
+                    {
+                        close = true;
+                    }
+                    let glyph = if collapsed {
+                        icon::CARET_DOWN
                     } else {
-                        format!("{curves} curves")
+                        icon::CARET_UP
                     };
-                    ui.weak(format!("{curve_count} · {points} points each"));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(icon::X)
-                            .on_hover_text("Close Curve Fit")
-                            .clicked()
-                        {
-                            close = true;
-                        }
-                        let glyph = if collapsed {
-                            icon::CARET_DOWN
+                    if ui
+                        .small_button(glyph)
+                        .on_hover_text(if collapsed {
+                            "Expand Curve Fit"
                         } else {
-                            icon::CARET_UP
-                        };
-                        if ui
-                            .small_button(glyph)
-                            .on_hover_text(if collapsed {
-                                "Expand Curve Fit"
-                            } else {
-                                "Collapse Curve Fit"
-                            })
-                            .clicked()
-                        {
-                            toggle_collapse = true;
-                        }
-                    });
+                            "Collapse Curve Fit"
+                        })
+                        .clicked()
+                    {
+                        toggle_collapse = true;
+                    }
                 });
-                if !collapsed {
-                    ui.separator();
-                    egui::Resize::default()
-                        .id_salt("curve_fit_task_body_resize")
-                        .default_size([ui.available_width(), default_body_height])
-                        .min_size([ui.available_width(), min_body_height])
-                        .max_size([ui.available_width(), max_body_height])
-                        .resizable([false, true])
-                        .with_stroke(false)
-                        .show(ui, |ui| curve_fit_task_body(app, di, ui));
-                }
             });
+            if !collapsed {
+                ui.separator();
+                task_card::resizable_body(
+                    ui,
+                    "curve_fit_task_body_resize",
+                    default_body_height,
+                    min_body_height,
+                    max_body_height,
+                    |ui| curve_fit_task_body(app, di, ui),
+                );
+            }
         });
+    });
 
     if toggle_collapse {
         app.session.ui.curve_fit_task_collapsed = !collapsed;

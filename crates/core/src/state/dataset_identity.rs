@@ -9,6 +9,7 @@ impl Dataset {
             Dataset::Electrophysiology(dataset) => dataset.resource_id,
             Dataset::Afm(dataset) => dataset.resource_id,
             Dataset::MassSpec(dataset) => dataset.resource_id,
+            Dataset::Xrd(dataset) => dataset.resource_id,
         }
     }
 
@@ -20,6 +21,7 @@ impl Dataset {
             Dataset::Electrophysiology(dataset) => dataset.resource_id = id,
             Dataset::Afm(dataset) => dataset.resource_id = id,
             Dataset::MassSpec(dataset) => dataset.resource_id = id,
+            Dataset::Xrd(dataset) => dataset.resource_id = id,
         }
     }
 }

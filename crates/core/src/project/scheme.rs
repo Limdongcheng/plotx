@@ -258,6 +258,9 @@ pub fn apply_scheme(
         Dataset::MassSpec(_) => Err(incompatible(
             "the imported data has no PlotX LC–MS processing pipeline",
         )),
+        Dataset::Xrd(_) => Err(incompatible(
+            "XRD processing recipes use XRD-specific parameters",
+        )),
     }
 }
 
@@ -293,6 +296,9 @@ pub fn reset_processing(dataset: &Dataset) -> Option<DatasetProcessingState> {
         Dataset::Electrophysiology(_) => None,
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
+        Dataset::Xrd(_) => Some(DatasetProcessingState::Xrd(
+            plotx_processing::xrd::XrdProcessing::default(),
+        )),
     }?;
     let mut next = dataset_next_step_id(dataset);
     match &mut state {
@@ -339,6 +345,7 @@ fn scheme_from_dataset(dataset: &Dataset) -> Option<ProcessingScheme> {
         Dataset::Electrophysiology(_) => None,
         Dataset::Afm(_) => None,
         Dataset::MassSpec(_) => None,
+        Dataset::Xrd(_) => None,
     }
 }
 

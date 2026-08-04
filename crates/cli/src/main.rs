@@ -505,6 +505,22 @@ fn text_report(report: &InspectionReport) -> String {
             ephys.protocol.as_deref().unwrap_or("unknown")
         ));
     }
+    if let Some(xrd) = &report.xrd {
+        lines.push(format!("xrd.points: {}", xrd.point_count));
+        lines.push(format!(
+            "xrd.two_theta_range_deg: {}..{}",
+            xrd.two_theta_range_deg[0], xrd.two_theta_range_deg[1]
+        ));
+        if let Some(instrument) = &xrd.instrument {
+            lines.push(format!("xrd.instrument: {instrument}"));
+        }
+        if let Some(target) = &xrd.target {
+            lines.push(format!("xrd.target: {target}"));
+        }
+        if let Some(wavelength) = xrd.wavelength_angstrom {
+            lines.push(format!("xrd.wavelength_angstrom: {wavelength}"));
+        }
+    }
     for warning in &report.warnings {
         lines.push(format!("warning.{}: {}", warning.code, warning.message));
     }

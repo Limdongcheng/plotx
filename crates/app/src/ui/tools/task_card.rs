@@ -1,9 +1,12 @@
-//! Shared geometry for the canvas task cards (Regions, Curve Fit). Both anchor
-//! to the same corner of the canvas, so the sizing rules live in one place.
+//! Shared geometry for canvas task cards. They start in the same canvas corner,
+//! so their initial position and sizing rules live in one place.
 
-use egui::{Pos2, RichText, Ui};
+use egui::{
+    Align, Area, CursorIcon, Id, Layout, Order, Pos2, RichText, Sense, Ui, UiBuilder, Vec2,
+};
 use egui_phosphor::regular as icon;
 use plotx_core::state::{PlotxApp, TaskDockTab, Tool};
+use std::hash::Hash;
 
 /// Width shared by every task card, and the gap it keeps from the canvas edges.
 const WIDTH: f32 = 310.0;
@@ -109,6 +112,91 @@ pub(crate) fn safe_fit_rect(app: &PlotxApp, host: egui::Rect) -> egui::Rect {
     egui::Rect::from_min_max(host.min, egui::pos2(right, host.bottom()))
 }
 
+/// A foreground task card that starts at `pos` and follows the shared title-bar
+/// drag position maintained by [`header`].
+pub(super) fn area(host: &Ui, id: Id, pos: Pos2) -> Area {
+    let stored = host
+        .ctx()
+        .data(|data| data.get_temp::<Pos2>(id.with("position")));
+    let area = Area::new(id)
+        .order(Order::Foreground)
+        .movable(false)
+        .constrain_to(host.max_rect());
+    if let Some(stored) = stored {
+        area.current_pos(stored)
+    } else {
+        area.default_pos(pos)
+    }
+}
+
+/// Renders a draggable title row. The drag zone is registered before its child
+/// buttons so close, collapse and menu controls retain priority.
+pub(super) fn header<R>(ui: &mut Ui, area_id: Id, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let (drag_rect, drag) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), ui.spacing().interact_size.y),
+        Sense::drag(),
+    );
+    let drag = drag.on_hover_cursor(CursorIcon::Grab);
+    update_drag_position(ui, area_id, &drag);
+    let mut header = ui.new_child(
+        UiBuilder::new()
+            .id_salt(area_id.with("title_contents"))
+            .max_rect(drag_rect)
+            .layout(Layout::left_to_right(Align::Center)),
+    );
+    add_contents(&mut header)
+}
+
+fn update_drag_position(ui: &Ui, area_id: Id, drag: &egui::Response) {
+    let origin_id = area_id.with("drag_origin");
+    let position_id = area_id.with("position");
+    if drag.drag_started()
+        && let Some(origin) = ui
+            .ctx()
+            .memory(|memory| memory.area_rect(area_id).map(|rect| rect.min))
+    {
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(origin_id, origin));
+    }
+    if drag.dragged()
+        && let Some(origin) = ui.ctx().data(|data| data.get_temp::<Pos2>(origin_id))
+        && let Some(delta) = drag.total_drag_delta()
+    {
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(position_id, origin + delta));
+        ui.ctx().request_repaint();
+    }
+    if drag.drag_stopped() {
+        ui.ctx().data_mut(|data| data.remove::<Pos2>(origin_id));
+    }
+}
+
+/// Renders the vertically resizable body shared by every task card.
+///
+/// `egui::Resize` normally collapses a non-resizable axis to its content size.
+/// Keeping the content UI at the card width aligns its handle with the card.
+pub(super) fn resizable_body<R>(
+    ui: &mut Ui,
+    id_salt: impl Hash,
+    default_height: f32,
+    min_height: f32,
+    max_height: f32,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> R {
+    let width = ui.available_width();
+    egui::Resize::default()
+        .id_salt(id_salt)
+        .default_size([width, default_height])
+        .min_size([width, min_height])
+        .max_size([width, max_height])
+        .resizable([false, true])
+        .with_stroke(false)
+        .show(ui, |ui| {
+            ui.set_min_width(width);
+            add_contents(ui)
+        })
+}
+
 pub(super) fn is_active(app: &PlotxApp, tab: TaskDockTab) -> bool {
     app.session.ui.task_dock_active == Some(tab)
 }
@@ -191,6 +279,7 @@ mod tests {
     use super::*;
     use plotx_core::state::{CanvasDocument, Dataset, NmrDataset};
     use plotx_io::{Domain, NmrData};
+    use std::cell::Cell;
 
     fn app_with_task(tab: TaskDockTab, collapsed: bool) -> PlotxApp {
         let mut app = PlotxApp::new();
@@ -276,5 +365,109 @@ mod tests {
 
         assert_eq!(safe, host);
         assert!(safe.is_finite());
+    }
+
+    #[test]
+    fn title_drag_moves_the_shared_task_card() {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(640.0, 480.0));
+        let area_id = Id::new("test_task_card");
+        let start = Pos2::new(100.0, 80.0);
+
+        let frame = |events| {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                events,
+                ..Default::default()
+            };
+            let _ = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    area(ui, area_id, start).show(ui.ctx(), |ui| {
+                        ui.set_width(WIDTH);
+                        header(ui, area_id, |ui| {
+                            ui.label("Processing");
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                let _ = ui.button("Close");
+                            });
+                        });
+                        ui.label("Body");
+                    });
+                });
+            });
+        };
+
+        frame(Vec::new());
+        frame(Vec::new());
+        let initial = ctx
+            .memory(|memory| memory.area_rect(area_id))
+            .expect("laid-out task card");
+        let pointer_start = initial.min + egui::vec2(80.0, 12.0);
+        let pointer_end = pointer_start + egui::vec2(120.0, 100.0);
+        frame(vec![egui::Event::PointerMoved(pointer_start)]);
+        frame(vec![
+            egui::Event::PointerMoved(pointer_start),
+            egui::Event::PointerButton {
+                pos: pointer_start,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::default(),
+            },
+        ]);
+        frame(vec![egui::Event::PointerMoved(pointer_end)]);
+        frame(vec![egui::Event::PointerButton {
+            pos: pointer_end,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        }]);
+
+        let moved = ctx
+            .memory(|memory| memory.area_rect(area_id))
+            .expect("task card area");
+        assert_eq!(moved.min, initial.min + (pointer_end - pointer_start));
+    }
+
+    #[test]
+    fn resize_handle_stays_at_the_task_card_right_edge() {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(640.0, 480.0));
+        let expected_right = Cell::new(0.0);
+        let actual_right = Cell::new(None);
+
+        let frame = || {
+            let _ = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ui| {
+                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                        Area::new(Id::new("resize_test_card"))
+                            .fixed_pos(Pos2::new(100.0, 80.0))
+                            .show(ui.ctx(), |ui| {
+                                ui.set_width(WIDTH);
+                                let body_id = Id::new("resize_test_body");
+                                let corner_id = ui
+                                    .make_persistent_id(Id::new(body_id))
+                                    .with("__resize_corner");
+                                expected_right
+                                    .set(ui.next_widget_position().x + ui.available_width());
+                                resizable_body(ui, body_id, 200.0, 120.0, 300.0, |ui| {
+                                    ui.label("Short content");
+                                });
+                                actual_right.set(
+                                    ui.ctx()
+                                        .read_response(corner_id)
+                                        .map(|response| response.rect.right()),
+                                );
+                            });
+                    });
+                },
+            );
+        };
+
+        frame();
+        frame();
+        assert_eq!(actual_right.get(), Some(expected_right.get()));
     }
 }

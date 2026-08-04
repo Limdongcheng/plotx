@@ -10,6 +10,7 @@ use crate::state::{
 use crate::theme::ThemeSnapshot;
 use crate::{Integral2D, IntegralResult};
 use plotx_io::AcquisitionStreamId;
+use plotx_processing::xrd::XrdProcessing;
 use plotx_processing::{AxisPipeline, Params2D, Preset2D};
 
 mod app_impl;
@@ -40,6 +41,7 @@ pub enum DatasetProcessingState {
     Table,
     Electrophysiology(crate::state::ElectrophysiologyProcessing),
     Afm,
+    Xrd(XrdProcessing),
 }
 
 #[derive(Clone)]

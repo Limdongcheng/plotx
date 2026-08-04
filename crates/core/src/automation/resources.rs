@@ -7,6 +7,7 @@ use crate::state::{Dataset, PlotxApp};
 use std::collections::BTreeMap;
 
 mod mass_spec;
+mod xrd;
 
 pub const KIND_DATASET: &str = "plotx.dataset";
 pub const KIND_APP: &str = "plotx.app";
@@ -54,6 +55,7 @@ pub const CAP_FIELD_AFM_MAP: &str = "field.afm.map";
 pub const CAP_FIELD_REGION_SERIES: &str = "field.region_series";
 pub const CAP_FIELD_MASS_CHROMATOGRAM: &str = "field.mass_spectrometry.chromatogram";
 pub const CAP_FIELD_MASS_SPECTRUM: &str = "field.mass_spectrometry.spectrum";
+pub const CAP_FIELD_XRD_PATTERN: &str = "field.xrd.pattern";
 
 /// Capability-oriented resource access. New resource types can participate by
 /// implementing this trait; query and tool orchestration do not dispatch on a
@@ -181,6 +183,7 @@ impl<'a> ProjectResourceProvider<'a> {
                 (dimensions, units, Vec::new())
             }
             Dataset::MassSpec(dataset) => mass_spec::descriptor(dataset),
+            Dataset::Xrd(dataset) => (vec![dataset.data.len()], vec!["deg".to_owned()], Vec::new()),
         };
         children.extend(
             dataset
@@ -674,6 +677,7 @@ fn preview_dataset(
             )
         }
         Dataset::MassSpec(dataset) => mass_spec::preview(dataset, target, limit, &mut statistics),
+        Dataset::Xrd(dataset) => xrd::preview(dataset, limit, &mut statistics),
     };
     let returned = total.min(limit);
     Ok(DataPreview {

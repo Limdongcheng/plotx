@@ -13,6 +13,7 @@ pub enum DataDomain {
     Electrophysiology,
     Afm,
     MassSpectrometry,
+    Xrd,
 }
 
 /// How a domain's datasets combine when several are stacked onto one plot:
@@ -34,6 +35,7 @@ impl DataDomain {
             | DataDomain::Table
             | DataDomain::Electrophysiology
             | DataDomain::MassSpectrometry => Some(StackKind::Line),
+            DataDomain::Xrd => Some(StackKind::Line),
             DataDomain::Nmr2d => Some(StackKind::Field),
             DataDomain::PseudoNmr | DataDomain::Afm => None,
         }
@@ -80,6 +82,17 @@ impl ChartDescriptor {
 /// The catalog. The first entry for a domain is that domain's default chart, so
 /// old `.plotx` files (no recorded chart type) map to it.
 static CHART_TYPES: &[ChartDescriptor] = &[
+    ChartDescriptor {
+        id: "xrd_pattern",
+        name: "XRD pattern",
+        recommended_domains: &[DataDomain::Xrd],
+        required_capabilities: &[
+            crate::automation::CAP_FIELD_CURVE_1D,
+            crate::automation::CAP_FIELD_XRD_PATTERN,
+        ],
+        needs_column: false,
+        build: build_xrd_pattern,
+    },
     ChartDescriptor {
         id: "mass_chromatogram",
         name: "Mass chromatogram",
@@ -390,6 +403,10 @@ fn build_nmr_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> 
         &n.processed,
         &n.peaks.resolve(),
     ))
+}
+
+fn build_xrd_pattern(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
+    Some(dataset.as_xrd()?.figure())
 }
 
 fn build_mass_chromatogram(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {

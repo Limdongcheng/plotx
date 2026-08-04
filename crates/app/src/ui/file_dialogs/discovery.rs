@@ -22,10 +22,12 @@ pub(super) fn collect_data_files(folder: &Path, output: &mut Vec<PathBuf>) {
                 .extension()
                 .and_then(|value| value.to_str())
                 .unwrap_or("");
-            if ["abf", "spm", "pfc"]
+            let supported_extension = ["abf", "spm", "pfc", "rasx"]
                 .iter()
-                .any(|supported| extension.eq_ignore_ascii_case(supported))
-            {
+                .any(|supported| extension.eq_ignore_ascii_case(supported));
+            let recognized_raw =
+                extension.eq_ignore_ascii_case("raw") && plotx_io::xrd::is_rigaku_raw(&path);
+            if supported_extension || recognized_raw {
                 output.push(path);
             }
         }
@@ -48,6 +50,24 @@ mod tests {
         let mut found = Vec::new();
         collect_data_files(&root, &mut found);
         assert_eq!(found.as_slice(), std::slice::from_ref(&root));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn folder_scan_keeps_only_recognized_raw_files() {
+        let root =
+            std::env::temp_dir().join(format!("plotx-xrd-discovery-{}", uuid::Uuid::new_v4()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir(&root).unwrap();
+        let xrd = root.join("pattern.raw");
+        let unrelated = root.join("unrelated.raw");
+        std::fs::write(&xrd, b"FI\0\0").unwrap();
+        std::fs::write(&unrelated, b"not an XRD file").unwrap();
+
+        let mut found = Vec::new();
+        collect_data_files(&root, &mut found);
+
+        assert_eq!(found, vec![xrd]);
         std::fs::remove_dir_all(root).unwrap();
     }
 }

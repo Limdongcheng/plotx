@@ -23,7 +23,7 @@ impl PlotxApp {
             return Ok(());
         }
         validate_action(self, &action, &mut ValidationShape::from_app(self))?;
-        self.apply_action(&action);
+        self.apply_action(&action)?;
         self.session.undo_stack.push(action);
         if self.session.undo_stack.len() > self.session.history_limit {
             self.session.undo_stack.remove(0);
@@ -59,11 +59,18 @@ impl PlotxApp {
             return;
         };
         let label = action.undo_label();
-        self.apply_action(&action);
-        self.session.undo_stack.push(action);
-        self.mark_document_dirty();
-        self.doc.automation_revision = self.doc.automation_revision.saturating_add(1);
-        self.session.status = format!("Redid {label}.");
+        match self.apply_action(&action) {
+            Ok(()) => {
+                self.session.undo_stack.push(action);
+                self.mark_document_dirty();
+                self.doc.automation_revision = self.doc.automation_revision.saturating_add(1);
+                self.session.status = format!("Redid {label}.");
+            }
+            Err(error) => {
+                self.session.redo_stack.push(action);
+                self.session.status = error.to_string();
+            }
+        }
     }
 
     pub fn can_undo(&self) -> bool {

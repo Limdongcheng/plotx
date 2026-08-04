@@ -260,6 +260,8 @@ fn extension_open_kind(path: &Path) -> RecentOpenKind {
     };
     if has_extension("plotx") {
         RecentOpenKind::Project
+    } else if has_extension("txt") && plotx_io::xrd::is_rigaku_profile(path) {
+        RecentOpenKind::DataFile
     } else if has_extension("csv") || has_extension("tsv") || has_extension("txt") {
         RecentOpenKind::DelimitedTable
     } else if has_extension("xlsx") {

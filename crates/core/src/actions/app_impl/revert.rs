@@ -20,7 +20,11 @@ impl PlotxApp {
             Action::UpdateDatasetProcessing {
                 dataset, before, ..
             } => {
-                self.set_dataset_processing_state(dataset_index!(*dataset), before);
+                if let Err(error) =
+                    self.set_dataset_processing_state(dataset_index!(*dataset), before)
+                {
+                    self.session.status = format!("Could not restore processing state: {error}");
+                }
             }
             Action::SetObjectViewport {
                 canvas,
