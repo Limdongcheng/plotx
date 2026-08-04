@@ -14,7 +14,7 @@ mod write;
 mod xlsx;
 use write::{
     safe_name, write_1d, write_electrophysiology, write_fits, write_integrals_1d,
-    write_integrals_2d, write_peaks, write_pseudo_2d, write_true_2d,
+    write_integrals_2d, write_peaks, write_pseudo_2d, write_true_2d, write_xrd,
 };
 pub use xlsx::delimited_sidecar_path;
 
@@ -202,6 +202,7 @@ fn processed_data_available(dataset: &Dataset) -> bool {
         // LC–MS export snapshots are not implemented yet. Do not advertise an
         // option whose capture path can only return `ContentUnavailable`.
         Dataset::MassSpec(_) => false,
+        Dataset::Xrd(xrd) => !xrd.processed.intensity.is_empty(),
     }
 }
 
@@ -289,6 +290,10 @@ enum SnapshotData {
         sample_rate_hz: f64,
         channel_label: String,
         traces: Vec<(usize, Vec<f64>)>,
+    },
+    Xrd {
+        two_theta_deg: Vec<f64>,
+        intensity: Vec<f64>,
     },
 }
 
@@ -396,6 +401,10 @@ impl DataExportSnapshot {
                 channel_label,
                 traces,
             } => write_electrophysiology(&mut writer, *sample_rate_hz, channel_label, traces)?,
+            SnapshotData::Xrd {
+                two_theta_deg,
+                intensity,
+            } => write_xrd(&mut writer, two_theta_deg, intensity)?,
         }
         Ok(())
     }
@@ -466,6 +475,10 @@ fn capture_processed(dataset: &Dataset) -> Result<SnapshotData, DataExportError>
         Dataset::Table(_) => Err(DataExportError::ContentUnavailable),
         Dataset::Afm(_) => Err(DataExportError::ContentUnavailable),
         Dataset::MassSpec(_) => Err(DataExportError::ContentUnavailable),
+        Dataset::Xrd(xrd) => Ok(SnapshotData::Xrd {
+            two_theta_deg: xrd.data.two_theta_deg.clone(),
+            intensity: xrd.processed.intensity.clone(),
+        }),
     }
 }
 

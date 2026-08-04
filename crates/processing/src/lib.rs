@@ -13,6 +13,7 @@ pub mod phase;
 mod preview;
 pub mod slice;
 pub mod timeseries;
+pub mod xrd;
 
 pub use output::{Processed1D, TimeTrace};
 pub use preview::{Preview, process_up_to};

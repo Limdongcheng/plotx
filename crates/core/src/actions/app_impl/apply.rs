@@ -6,23 +6,29 @@ impl PlotxApp {
     /// Apply an action's `after` state to the live document without touching
     /// history. Callers that record the step themselves — a paused processing
     /// commit, a coalesced gesture — use this and then record once.
-    pub(crate) fn apply_action(&mut self, action: &Action) {
+    pub(crate) fn apply_action(&mut self, action: &Action) -> Result<(), ActionApplyError> {
         macro_rules! dataset_index {
             ($id:expr) => {
                 match self.doc.dataset_index($id) {
                     Some(index) => index,
-                    None => return,
+                    None => return Err(ActionApplyError::StaleTarget(format!("dataset {}", $id))),
                 }
             };
         }
         match action {
             Action::Composite(actions) => {
-                for action in actions {
-                    self.apply_action(action);
+                for (index, action) in actions.iter().enumerate() {
+                    if let Err(error) = self.apply_action(action) {
+                        for applied in actions[..index].iter().rev() {
+                            self.revert_action(applied);
+                        }
+                        return Err(error);
+                    }
                 }
             }
             Action::UpdateDatasetProcessing { dataset, after, .. } => {
-                self.set_dataset_processing_state(dataset_index!(*dataset), after);
+                self.set_dataset_processing_state(dataset_index!(*dataset), after)
+                    .map_err(ActionApplyError::InvalidValue)?;
             }
             Action::SetObjectViewport {
                 canvas,
@@ -303,15 +309,15 @@ impl PlotxApp {
                 ..
             } => {
                 if *dataset_index != self.doc.datasets.len() {
-                    return;
+                    return Ok(());
                 }
                 if !self.register_loaded_dataset_fields(dataset.as_ref()) {
-                    return;
+                    return Ok(());
                 }
                 self.doc.datasets.push(dataset.as_ref().clone());
                 if let Some(ci) = inserted_into_existing_canvas {
                     let Some(canvas) = self.doc.canvases.get(*ci) else {
-                        return;
+                        return Ok(());
                     };
                     let page = canvas.size_pt();
                     let offset = 18.0 * canvas.objects.len() as f32;
@@ -330,7 +336,7 @@ impl PlotxApp {
                     self.session.active_canvas = Some(*ci);
                 } else {
                     if *canvas_index != self.doc.canvases.len() {
-                        return;
+                        return Ok(());
                     }
                     let mut canvas = crate::workflow::build_default_canvas_for_dataset(
                         &self.doc.datasets[*dataset_index],
@@ -355,5 +361,6 @@ impl PlotxApp {
             Action::TransferObjects { .. } => self.apply_transfer(action),
             Action::TileDrop { .. } => self.apply_tile_drop(action),
         }
+        Ok(())
     }
 }

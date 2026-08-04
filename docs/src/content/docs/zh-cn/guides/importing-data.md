@@ -12,6 +12,7 @@ PlotX 直接读取厂商 LC–MS、NMR、AFM 与电生理格式，无需任何�
 | JEOL Delta | `.jdf` | 1D、2D 及伪 2D（DOSY / T1 / T2） |
 | Bruker TopSpin | `fid` / `ser` 目录 | 1D 与 2D |
 | Waters MassLynx RAW | `.raw` 目录 | 已验证的低分辨率数据，包括 SQD2 数据 |
+| Rigaku 粉末 XRD | `.rasx`、FI `.raw`、RAS_RAW `.txt` | 衍射图样、采集元数据，以及文件提供的衰减系数 |
 | mzML | `.mzML` | 使用 32 位或 64 位、未压缩或 zlib 压缩数组的质心或轮廓 LC–MS 谱图 |
 | Bruker NanoScope AFM | `.spm` / `.pfc` | 图像、力曲线、Force Volume 与 PeakForce Capture 数据立方体 |
 | JCAMP-DX | `.dx` / `.jdx` / `.jcamp` | 1D 频域 NMR 谱 |
@@ -40,6 +41,19 @@ PlotX 直接读取厂商 LC–MS、NMR、AFM 与电生理格式，无需任何�
 
 导入器支持小端 32 位和 64 位浮点 m/z 与强度数组，可不压缩或使用 zlib 压缩。
 Numpress、大端数组以及缺少任一必需数组的谱图会使导入停止并显示错误。
+
+## Rigaku 粉末 XRD
+
+有 `.rasx` 时请优先打开该文件。PlotX 会同时读取实测 2theta、强度、衰减系数，
+以及仪器名称、X 射线靶材、Kalpha1 波长、管电压/电流、扫描步长和扫描速度。
+初始页面显示 XRD pattern。**Processing** 中可选择 SNIP 背景扣除、
+Savitzky-Golay 平滑，以及按最大强度或积分面积归一化；这些设置与原始观测值
+都会保存在 PlotX 项目中。
+
+采用 `FI` 布局的 Rigaku `.raw`，以及文件头标明 `RAS_RAW` 的 profile `.txt`，
+也会作为 XRD 打开。二进制读取器会保留扫描坐标、强度、X 射线靶材、Kalpha1
+波长、管电压/电流和扫描速度。由于不同厂商会使用互不兼容的 `.raw` 格式，
+PlotX 会明确拒绝其他文件签名。普通 `.txt` 仍进入表格导入预览，不会被静默改判。
 
 ## Waters MassLynx RAW
 

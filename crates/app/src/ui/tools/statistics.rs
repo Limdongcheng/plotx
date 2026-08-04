@@ -4,7 +4,7 @@
 //! question to data roles, options, an early feasibility check, and a persisted
 //! result list — without requiring any statistics vocabulary to begin.
 
-use egui::{Area, Button, Order, Ui};
+use egui::{Button, Ui};
 use egui_phosphor::regular as icon;
 use plotx_core::state::{Dataset, PlotxApp, StatDraft, TaskDockTab};
 
@@ -66,60 +66,58 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
     let mut close = false;
     let mut toggle_collapse = false;
 
-    Area::new(egui::Id::new("statistics_task_card"))
-        .order(Order::Foreground)
-        .fixed_pos(pos)
-        .show(host.ctx(), |ui| {
-            ui.set_width(width);
-            crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
-                if task_card::tab_bar(app, TaskDockTab::Statistics, ui) {
-                    ui.separator();
-                }
-                let table = app.doc.datasets[di].as_table().unwrap();
-                let columns = table.numeric_analysis_columns().len();
-                let points = table.typed_state.envelope.revision.snapshot.row_count;
-                ui.horizontal(|ui| {
-                    ui.label(crate::typography::headline("Statistics"));
-                    ui.weak(format!("{columns} columns · {points} rows"));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(icon::X)
-                            .on_hover_text("Close Statistics")
-                            .clicked()
-                        {
-                            close = true;
-                        }
-                        let glyph = if collapsed {
-                            icon::CARET_DOWN
+    let area_id = egui::Id::new("statistics_task_card");
+    task_card::area(host, area_id, pos).show(host.ctx(), |ui| {
+        ui.set_width(width);
+        crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
+            if task_card::tab_bar(app, TaskDockTab::Statistics, ui) {
+                ui.separator();
+            }
+            let table = app.doc.datasets[di].as_table().unwrap();
+            let columns = table.numeric_analysis_columns().len();
+            let points = table.typed_state.envelope.revision.snapshot.row_count;
+            task_card::header(ui, area_id, |ui| {
+                ui.label(crate::typography::headline("Statistics"));
+                ui.weak(format!("{columns} columns · {points} rows"));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(icon::X)
+                        .on_hover_text("Close Statistics")
+                        .clicked()
+                    {
+                        close = true;
+                    }
+                    let glyph = if collapsed {
+                        icon::CARET_DOWN
+                    } else {
+                        icon::CARET_UP
+                    };
+                    if ui
+                        .small_button(glyph)
+                        .on_hover_text(if collapsed {
+                            "Expand Statistics"
                         } else {
-                            icon::CARET_UP
-                        };
-                        if ui
-                            .small_button(glyph)
-                            .on_hover_text(if collapsed {
-                                "Expand Statistics"
-                            } else {
-                                "Collapse Statistics"
-                            })
-                            .clicked()
-                        {
-                            toggle_collapse = true;
-                        }
-                    });
+                            "Collapse Statistics"
+                        })
+                        .clicked()
+                    {
+                        toggle_collapse = true;
+                    }
                 });
-                if !collapsed {
-                    ui.separator();
-                    egui::Resize::default()
-                        .id_salt("statistics_task_body_resize")
-                        .default_size([ui.available_width(), default_body_height])
-                        .min_size([ui.available_width(), min_body_height])
-                        .max_size([ui.available_width(), max_body_height])
-                        .resizable([false, true])
-                        .with_stroke(false)
-                        .show(ui, |ui| statistics_task_body(app, di, ui));
-                }
             });
+            if !collapsed {
+                ui.separator();
+                task_card::resizable_body(
+                    ui,
+                    "statistics_task_body_resize",
+                    default_body_height,
+                    min_body_height,
+                    max_body_height,
+                    |ui| statistics_task_body(app, di, ui),
+                );
+            }
         });
+    });
 
     if toggle_collapse {
         app.session.ui.stat_task_collapsed = !collapsed;

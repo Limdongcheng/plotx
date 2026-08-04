@@ -87,8 +87,11 @@ pub(crate) fn expand_processing_surface(app: &mut PlotxApp) {
     else {
         return;
     };
-    if !matches!(dataset, Dataset::Nmr(_) | Dataset::Nmr2D(_)) {
-        app.session.status = "Select an NMR dataset before opening Processing.".to_owned();
+    if !matches!(
+        dataset,
+        Dataset::Nmr(_) | Dataset::Nmr2D(_) | Dataset::Xrd(_)
+    ) {
+        app.session.status = "Select a processable dataset before opening Processing.".to_owned();
         return;
     }
     app.session.ui.processing_task_dataset = Some(dataset.resource_id());

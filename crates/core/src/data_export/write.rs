@@ -49,6 +49,25 @@ pub(super) fn write_1d<W: Write>(
     Ok(())
 }
 
+pub(super) fn write_xrd<W: Write>(
+    writer: &mut DelimitedWriter<W>,
+    two_theta_deg: &[f64],
+    intensity: &[f64],
+) -> io::Result<()> {
+    writer.write_record(&[Field::Text("two_theta_deg"), Field::Text("intensity")])?;
+    for index in 0..two_theta_deg.len().max(intensity.len()) {
+        writer.write_record(&[
+            two_theta_deg
+                .get(index)
+                .map_or(Field::Empty, |value| Field::Number(*value)),
+            intensity
+                .get(index)
+                .map_or(Field::Empty, |value| Field::Number(*value)),
+        ])?;
+    }
+    Ok(())
+}
+
 pub(super) fn write_true_2d<W: Write>(
     writer: &mut DelimitedWriter<W>,
     spectrum: &Spectrum2D,

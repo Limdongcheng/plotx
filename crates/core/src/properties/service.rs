@@ -466,8 +466,10 @@ impl PlotxApp {
         } else {
             gesture.last = Some(action.clone());
         }
-        self.apply_action(&action);
-        self.mark_document_dirty();
+        match self.apply_action(&action) {
+            Ok(()) => self.mark_document_dirty(),
+            Err(error) => self.session.status = error.to_string(),
+        }
     }
 
     fn plan_edit(

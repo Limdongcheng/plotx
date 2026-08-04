@@ -11,7 +11,11 @@ impl DatasetProcessingState {
                 PhaseAxis::F1 => Some(&mut params.f1),
                 PhaseAxis::Direct => None,
             },
-            Self::Nmr { .. } | Self::Table | Self::Electrophysiology(_) | Self::Afm => None,
+            Self::Nmr { .. }
+            | Self::Table
+            | Self::Electrophysiology(_)
+            | Self::Afm
+            | Self::Xrd(_) => None,
         }
     }
 
@@ -25,7 +29,7 @@ impl DatasetProcessingState {
                 group_delay_correct,
                 ..
             } => Some(group_delay_correct),
-            Self::Table | Self::Electrophysiology(_) | Self::Afm => None,
+            Self::Table | Self::Electrophysiology(_) | Self::Afm | Self::Xrd(_) => None,
         }
     }
 
@@ -44,6 +48,7 @@ impl DatasetProcessingState {
             Dataset::Electrophysiology(d) => Self::Electrophysiology(d.processing),
             Dataset::Afm(_) => Self::Afm,
             Dataset::MassSpec(_) => Self::Table,
+            Dataset::Xrd(data) => Self::Xrd(data.params),
         }
     }
 
@@ -58,7 +63,7 @@ impl DatasetProcessingState {
         let pipelines: Vec<&mut AxisPipeline> = match self {
             Self::Nmr { pipeline, .. } => vec![pipeline],
             Self::Nmr2D { params, .. } => vec![&mut params.f2, &mut params.f1],
-            Self::Table | Self::Electrophysiology(_) | Self::Afm => Vec::new(),
+            Self::Table | Self::Electrophysiology(_) | Self::Afm | Self::Xrd(_) => Vec::new(),
         };
         pipelines
             .into_iter()
@@ -145,6 +150,15 @@ impl DatasetProcessingState {
                 Ok(ProcessingRebuild::Rebuilt)
             }
             (Dataset::Afm(_), Self::Afm) => Ok(ProcessingRebuild::Unchanged),
+            (Dataset::Xrd(data), Self::Xrd(processing)) => {
+                data.apply_processing(*processing).map_err(|error| {
+                    ProcessingStateError::InvalidPipeline {
+                        axis: "2theta",
+                        details: error.to_string(),
+                    }
+                })?;
+                Ok(ProcessingRebuild::Rebuilt)
+            }
             (dataset, state) => Err(ProcessingStateError::KindMismatch {
                 dataset_kind: dataset.kind_label(),
                 state_kind: state.kind_label(),
@@ -159,6 +173,7 @@ impl DatasetProcessingState {
             Self::Table => "Data Table",
             Self::Electrophysiology(_) => "Electrophysiology",
             Self::Afm => "AFM",
+            Self::Xrd(_) => "XRD",
         }
     }
 }

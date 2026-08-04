@@ -12,6 +12,7 @@ pub mod nanoscope;
 pub mod origin;
 pub mod waters;
 pub mod xlsx;
+pub mod xrd;
 
 pub use mass_spec::*;
 
@@ -32,6 +33,9 @@ pub enum DataFormat {
     BrukerPeakForceCapture,
     WatersMassLynxRaw,
     MzMl,
+    RigakuRasx,
+    RigakuRaw,
+    RigakuProfile,
 }
 
 impl DataFormat {
@@ -47,6 +51,9 @@ impl DataFormat {
             Self::BrukerPeakForceCapture => "bruker-peakforce-capture",
             Self::WatersMassLynxRaw => "waters-masslynx-raw",
             Self::MzMl => "mzml",
+            Self::RigakuRasx => "rigaku-rasx",
+            Self::RigakuRaw => "rigaku-raw-fi",
+            Self::RigakuProfile => "rigaku-profile",
         }
     }
 }
@@ -346,6 +353,77 @@ pub enum Acquisition {
     Electrophysiology(Box<ElectrophysiologyData>),
     Afm(Box<AfmData>),
     MassSpec(Box<MassSpecRun>),
+    Xrd(Box<XrdData>),
+}
+
+/// A one-dimensional powder X-ray diffraction pattern.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct XrdData {
+    /// Diffraction angle 2theta in degrees, strictly increasing.
+    pub two_theta_deg: Vec<f64>,
+    /// Observed intensity in counts per second when the source declares it.
+    pub intensity: Vec<f64>,
+    /// Per-point attenuation multiplier retained from Rigaku profiles.
+    pub attenuation: Option<Vec<f64>>,
+    pub source: String,
+    pub instrument: Option<String>,
+    pub target: Option<String>,
+    pub wavelength_angstrom: Option<f64>,
+    pub voltage_kv: Option<f64>,
+    pub current_ma: Option<f64>,
+    pub scan_step_deg: Option<f64>,
+    pub scan_speed_deg_min: Option<f64>,
+}
+
+impl XrdData {
+    pub fn len(&self) -> usize {
+        self.two_theta_deg.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.two_theta_deg.is_empty()
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.len() < 2 || self.len() != self.intensity.len() {
+            return Err("XRD payload has inconsistent axes");
+        }
+        if self
+            .two_theta_deg
+            .iter()
+            .zip(&self.intensity)
+            .any(|(&angle, &intensity)| {
+                !angle.is_finite() || !intensity.is_finite() || intensity < 0.0
+            })
+        {
+            return Err("XRD payload contains invalid numeric values");
+        }
+        if self.two_theta_deg.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err("XRD 2theta values must increase strictly");
+        }
+        if self.attenuation.as_ref().is_some_and(|values| {
+            values.len() != self.len()
+                || values
+                    .iter()
+                    .any(|value| !value.is_finite() || *value <= 0.0)
+        }) {
+            return Err("XRD attenuation values are invalid");
+        }
+        if [
+            self.wavelength_angstrom,
+            self.voltage_kv,
+            self.current_ma,
+            self.scan_step_deg,
+            self.scan_speed_deg_min,
+        ]
+        .into_iter()
+        .flatten()
+        .any(|value| !value.is_finite() || value <= 0.0)
+        {
+            return Err("XRD acquisition metadata contains an invalid numeric value");
+        }
+        Ok(())
+    }
 }
 
 /// Linear calibration applied lazily to an AFM integer signal.
@@ -513,6 +591,9 @@ pub enum IoError {
     #[error("invalid Waters MassLynx RAW bundle: {0}")]
     InvalidWatersRaw(String),
 
+    #[error("invalid XRD data: {0}")]
+    InvalidXrd(String),
+
     #[error(
         "unsupported Waters encoding for function {native_function}: IDX stride {idx_stride}, pair width {pair_width}; instrument {instrument}"
     )]
@@ -547,6 +628,13 @@ pub fn detect_format(path: impl AsRef<Path>) -> Result<DataFormat, IoError> {
         .unwrap_or("")
         .to_ascii_lowercase();
     match ext.as_str() {
+        "rasx" => Ok(DataFormat::RigakuRasx),
+        "raw" if xrd::is_rigaku_raw(path) => Ok(DataFormat::RigakuRaw),
+        "txt" if xrd::is_rigaku_profile(path) => Ok(DataFormat::RigakuProfile),
+        "raw" if path.is_file() => Err(IoError::Unsupported(format!(
+            "unsupported XRD .raw variant; this build recognizes the Rigaku FI layout, .rasx, and exported profile .txt ({})",
+            path.display()
+        ))),
         "spm" if nanoscope::is_nanoscope(path) => Ok(DataFormat::BrukerNanoScopeSpm),
         "pfc" if nanoscope::is_nanoscope(path) => Ok(DataFormat::BrukerPeakForceCapture),
         "abf" if abf2::is_abf2(path) => Ok(DataFormat::Abf2),
@@ -558,7 +646,7 @@ pub fn detect_format(path: impl AsRef<Path>) -> Result<DataFormat, IoError> {
         _ if abf2::is_abf2(path) => Ok(DataFormat::Abf2),
         _ if jeol::is_jdf(path) => Ok(DataFormat::JeolDelta),
         _ => Err(IoError::Unsupported(format!(
-            "unrecognised path {}: expected mzML, a Waters .raw directory, NanoScope .spm/.pfc, ABF2 .abf, JEOL .jdf, JCAMP-DX .dx/.jdx/.jcamp, Bruker fid/ser, or Bruker pdata",
+            "unrecognised path {}: expected mzML, Rigaku FI .raw/.rasx/profile .txt, a Waters .raw directory, NanoScope .spm/.pfc, ABF2 .abf, JEOL .jdf, JCAMP-DX .dx/.jdx/.jcamp, Bruker fid/ser, or Bruker pdata",
             path.display()
         ))),
     }
@@ -589,5 +677,8 @@ pub fn load_path(path: impl AsRef<Path>) -> Result<LoadResult, IoError> {
         }
         DataFormat::WatersMassLynxRaw => waters::load(path),
         DataFormat::MzMl => mzml::load(path),
+        DataFormat::RigakuRasx => xrd::load_rasx(path),
+        DataFormat::RigakuRaw => xrd::load_raw(path),
+        DataFormat::RigakuProfile => xrd::load_profile(path),
     }
 }

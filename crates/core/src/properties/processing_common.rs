@@ -163,7 +163,8 @@ pub(super) fn raw_point_count(dataset: &Dataset, axis: PhaseAxis) -> usize {
         Dataset::Table(_)
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
-        | Dataset::MassSpec(_) => 0,
+        | Dataset::MassSpec(_)
+        | Dataset::Xrd(_) => 0,
     }
 }
 

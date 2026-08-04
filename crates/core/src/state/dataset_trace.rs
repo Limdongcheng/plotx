@@ -25,6 +25,7 @@ impl Dataset {
             Self::Electrophysiology(_) => "s".into(),
             Self::Afm(_) => String::new(),
             Self::MassSpec(_) => "min".into(),
+            Self::Xrd(_) => "deg".into(),
         }
     }
 
@@ -44,6 +45,7 @@ impl Dataset {
             Self::Electrophysiology(data) => !data.data.sweeps.is_empty(),
             Self::Afm(_) => false,
             Self::MassSpec(_) => true,
+            Self::Xrd(_) => true,
         }
     }
 
@@ -87,6 +89,11 @@ impl Dataset {
                     x_reversed: false,
                 })
             }
+            Self::Xrd(data) => Some(Trace1d {
+                xs: data.data.two_theta_deg.clone(),
+                ys: data.processed.intensity.clone(),
+                x_reversed: false,
+            }),
         }
     }
 }

@@ -51,6 +51,9 @@ impl PlotxApp {
                 n.preset = *preset;
                 n.group_delay_correct = *group_delay_correct;
             }
+            (Dataset::Xrd(data), DatasetProcessingState::Xrd(processing)) => {
+                data.params = *processing;
+            }
             _ => {}
         }
     }
@@ -59,14 +62,15 @@ impl PlotxApp {
     /// that means a full retransform or a cheap re-apply is decided by comparing
     /// the recipes, not by the caller. Lives beside the pause gate because it is
     /// the other half of it: this is what "not paused" does.
-    pub fn set_dataset_processing_state(&mut self, dataset: usize, state: &DatasetProcessingState) {
+    pub fn set_dataset_processing_state(
+        &mut self,
+        dataset: usize,
+        state: &DatasetProcessingState,
+    ) -> Result<(), String> {
         let Some(current) = self.doc.datasets.get(dataset) else {
-            return;
+            return Err(format!("Dataset index {dataset} is no longer available."));
         };
-        if let Err(error) = validate_processing_state(current, state) {
-            self.session.status = error;
-            return;
-        }
+        validate_processing_state(current, state)?;
         if let (
             Some(Dataset::Nmr2D(current)),
             DatasetProcessingState::Nmr2D {
@@ -81,15 +85,13 @@ impl PlotxApp {
             current.preset = *preset;
             current.group_delay_correct = *group_delay_correct;
             self.schedule_2d_processing(dataset, force_full);
-            return;
+            return Ok(());
         }
         let current = &mut self.doc.datasets[dataset];
-        if let Err(error) = state.apply_to(current) {
-            self.session.status = error.to_string();
-            return;
-        }
+        state.apply_to(current).map_err(|error| error.to_string())?;
         self.recompute_integrals_2d_after_processing(dataset);
         self.rebuild_canvases_for(dataset);
+        Ok(())
     }
 
     /// Commit a processing edit through the pause gate: recompute now when
@@ -111,8 +113,10 @@ impl PlotxApp {
             .is_some_and(|edit| edit.dataset == dataset_id)
             && !self.session.ui.proc_paused
         {
-            if DatasetProcessingState::from_dataset(&self.doc.datasets[dataset]) != after {
-                self.set_dataset_processing_state(dataset, &after);
+            if DatasetProcessingState::from_dataset(&self.doc.datasets[dataset]) != after
+                && let Err(error) = self.set_dataset_processing_state(dataset, &after)
+            {
+                self.session.status = error;
             }
             return;
         }
@@ -299,7 +303,7 @@ impl PlotxApp {
     }
 }
 
-fn validate_processing_state(
+pub(super) fn validate_processing_state(
     dataset: &Dataset,
     state: &DatasetProcessingState,
 ) -> Result<(), String> {
@@ -318,6 +322,10 @@ fn validate_processing_state(
                 .output_domain(dataset.data.domain)
                 .map_err(|error| format!("Cannot apply invalid F1 processing pipeline: {error}"))?;
             Ok(())
+        }
+        (Dataset::Xrd(_), DatasetProcessingState::Xrd(processing)) => {
+            plotx_processing::xrd::validate(*processing)
+                .map_err(|error| format!("Cannot apply invalid XRD processing pipeline: {error}"))
         }
         _ => Ok(()),
     }

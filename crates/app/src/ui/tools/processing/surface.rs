@@ -5,9 +5,13 @@
 
 use super::*;
 use crate::ui::tools::task_card::{self, TaskCardGeometry};
-use egui::{Area, Key, Order, RichText};
+use egui::{Key, RichText};
 use plotx_core::state::TaskDockTab;
 use plotx_io::Domain;
+use plotx_processing::xrd::{
+    MAX_SAVGOL_ORDER, MAX_SAVGOL_WINDOW, MAX_SNIP_ITERATIONS, SavitzkyGolay, SnipBackground,
+    XrdNormalization,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SourceShape {
@@ -57,7 +61,8 @@ fn surface_shape(dataset: &Dataset) -> Option<SurfaceShape> {
         Dataset::Table(_)
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
-        | Dataset::MassSpec(_) => return None,
+        | Dataset::MassSpec(_)
+        | Dataset::Xrd(_) => return None,
     };
     let axes = dataset
         .phase_axes()
@@ -90,6 +95,10 @@ pub(super) fn render(app: &mut PlotxApp, host: &mut Ui) {
     if app.active_dataset() != Some(di) {
         return;
     }
+    if app.doc.datasets[di].as_xrd().is_some() {
+        render_xrd(app, host, di, owner);
+        return;
+    }
     let Some(shape) = surface_shape(&app.doc.datasets[di]) else {
         app.session.ui.close_task_tab(TaskDockTab::Processing);
         return;
@@ -105,88 +114,259 @@ pub(super) fn render(app: &mut PlotxApp, host: &mut Ui) {
     let mut close = false;
     let mut toggle = false;
 
-    Area::new(egui::Id::new("processing_task_card"))
-        .order(Order::Foreground)
-        .fixed_pos(pos)
-        .show(host.ctx(), |ui| {
-            ui.set_width(width);
-            crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
-                if task_card::tab_bar(app, TaskDockTab::Processing, ui) {
-                    ui.separator();
-                }
-                let name = app.doc.datasets[di].display_name();
-                let output = shape
-                    .axes
-                    .iter()
-                    .map(|axis| {
-                        axis.pipeline
-                            .output_domain(shape.input_domain)
-                            .unwrap_or(shape.input_domain)
-                    })
-                    .collect::<Vec<_>>();
-                ui.horizontal(|ui| {
-                    ui.label(crate::typography::headline("Processing"));
-                    ui.weak(if output.iter().all(|d| *d == Domain::Time) {
-                        "Time-domain output"
-                    } else {
-                        "Frequency-domain output"
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(icon::X)
-                            .on_hover_text("Close Processing")
-                            .clicked()
-                        {
-                            close = true;
-                        }
-                        let glyph = if collapsed {
-                            icon::CARET_DOWN
-                        } else {
-                            icon::CARET_UP
-                        };
-                        if ui.small_button(glyph).clicked() {
-                            toggle = true;
-                        }
-                        ui.menu_button(icon::DOTS_THREE_VERTICAL, |ui| panel_menu(app, di, ui));
-                    });
+    let area_id = egui::Id::new("processing_task_card");
+    task_card::area(host, area_id, pos).show(host.ctx(), |ui| {
+        ui.set_width(width);
+        crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
+            if task_card::tab_bar(app, TaskDockTab::Processing, ui) {
+                ui.separator();
+            }
+            let name = app.doc.datasets[di].display_name();
+            let output = shape
+                .axes
+                .iter()
+                .map(|axis| {
+                    axis.pipeline
+                        .output_domain(shape.input_domain)
+                        .unwrap_or(shape.input_domain)
+                })
+                .collect::<Vec<_>>();
+            task_card::header(ui, area_id, |ui| {
+                ui.label(crate::typography::headline("Processing"));
+                ui.weak(if output.iter().all(|d| *d == Domain::Time) {
+                    "Time-domain output"
+                } else {
+                    "Frequency-domain output"
                 });
-                ui.add(egui::Label::new(RichText::new(name).small()).truncate());
-                ui.small(format!(
-                    "{} · {}",
-                    shape.source.label(),
-                    if is_default_processing(&app.doc.datasets[di]) {
-                        "default recipe"
-                    } else {
-                        "modified recipe"
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(icon::X)
+                        .on_hover_text("Close Processing")
+                        .clicked()
+                    {
+                        close = true;
                     }
-                ));
-                if !collapsed {
-                    ui.separator();
-                    egui::Resize::default()
-                        .id_salt("processing_task_body_resize")
-                        .default_size([ui.available_width(), 430.0])
-                        .min_size([ui.available_width(), min_body_height])
-                        .max_size([ui.available_width(), max_body_height])
-                        .resizable([false, true])
-                        .with_stroke(false)
-                        .show(ui, |ui| {
-                            egui::ScrollArea::vertical()
-                                .id_salt(("processing_task", owner))
-                                .auto_shrink([false, true])
-                                .show(ui, |ui| {
-                                    if shape.axes.len() == 2 {
-                                        ui.small("Axes are processed F2 direct, then F1 indirect.");
-                                    }
-                                    for axis in &shape.axes {
-                                        render_axis(app, di, owner, shape.input_domain, axis, ui);
-                                    }
-                                    action_bar(app, ui);
-                                    analysis_card(app, di, ui);
-                                });
-                        });
-                }
+                    let glyph = if collapsed {
+                        icon::CARET_DOWN
+                    } else {
+                        icon::CARET_UP
+                    };
+                    if ui.small_button(glyph).clicked() {
+                        toggle = true;
+                    }
+                    ui.menu_button(icon::DOTS_THREE_VERTICAL, |ui| panel_menu(app, di, ui));
+                });
             });
+            ui.add(egui::Label::new(RichText::new(name).small()).truncate());
+            ui.small(format!(
+                "{} · {}",
+                shape.source.label(),
+                if is_default_processing(&app.doc.datasets[di]) {
+                    "default recipe"
+                } else {
+                    "modified recipe"
+                }
+            ));
+            if !collapsed {
+                ui.separator();
+                task_card::resizable_body(
+                    ui,
+                    "processing_task_body_resize",
+                    430.0,
+                    min_body_height,
+                    max_body_height,
+                    |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt(("processing_task", owner))
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                if shape.axes.len() == 2 {
+                                    ui.small("Axes are processed F2 direct, then F1 indirect.");
+                                }
+                                for axis in &shape.axes {
+                                    render_axis(app, di, owner, shape.input_domain, axis, ui);
+                                }
+                                action_bar(app, ui);
+                                analysis_card(app, di, ui);
+                            });
+                    },
+                );
+            }
         });
+    });
+    if toggle {
+        app.session.ui.processing_task_collapsed = !collapsed;
+    }
+    if close {
+        app.session.ui.close_task_tab(TaskDockTab::Processing);
+    }
+}
+
+fn render_xrd(app: &mut PlotxApp, host: &mut Ui, di: usize, owner: DatasetId) {
+    let Some(dataset) = app.doc.datasets[di].as_xrd() else {
+        return;
+    };
+    let before = DatasetProcessingState::from_dataset(&app.doc.datasets[di]);
+    let mut params = dataset.params;
+    let name = app.doc.datasets[di].display_name();
+    let TaskCardGeometry {
+        pos,
+        width,
+        min_body_height,
+        max_body_height,
+    } = task_card::geometry(host, 300.0);
+    let collapsed = app.session.ui.processing_task_collapsed;
+    let dark = host.visuals().dark_mode;
+    let mut close = false;
+    let mut toggle = false;
+    let mut changed = false;
+    let mut reset = false;
+
+    let area_id = egui::Id::new("processing_task_card");
+    task_card::area(host, area_id, pos).show(host.ctx(), |ui| {
+        ui.set_width(width);
+        crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
+            if task_card::tab_bar(app, TaskDockTab::Processing, ui) {
+                ui.separator();
+            }
+            task_card::header(ui, area_id, |ui| {
+                ui.label(crate::typography::headline("XRD Processing"));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(icon::X)
+                        .on_hover_text("Close Processing")
+                        .clicked()
+                    {
+                        close = true;
+                    }
+                    let glyph = if collapsed {
+                        icon::CARET_DOWN
+                    } else {
+                        icon::CARET_UP
+                    };
+                    if ui.small_button(glyph).clicked() {
+                        toggle = true;
+                    }
+                    ui.menu_button(icon::DOTS_THREE_VERTICAL, |ui| panel_menu(app, di, ui));
+                    if ui
+                        .small_button(icon::ARROW_ARC_LEFT)
+                        .on_hover_text("Reset processing")
+                        .clicked()
+                    {
+                        reset = true;
+                    }
+                });
+            });
+            ui.add(egui::Label::new(RichText::new(name).small()).truncate());
+            if !collapsed {
+                ui.separator();
+                task_card::resizable_body(
+                    ui,
+                    ("xrd_processing_task_body_resize", owner),
+                    250.0,
+                    min_body_height,
+                    max_body_height,
+                    |ui| {
+                        let mut background = params.background.is_some();
+                        if ui
+                            .checkbox(&mut background, "SNIP background subtraction")
+                            .changed()
+                        {
+                            params.background =
+                                background.then_some(SnipBackground { iterations: 40 });
+                            changed = true;
+                        }
+                        if let Some(settings) = &mut params.background {
+                            ui.horizontal(|ui| {
+                                ui.label("Iterations");
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut settings.iterations)
+                                            .range(1..=MAX_SNIP_ITERATIONS),
+                                    )
+                                    .changed();
+                            });
+                        }
+                        let mut smoothing = params.smoothing.is_some();
+                        if ui
+                            .checkbox(&mut smoothing, "Savitzky-Golay smoothing")
+                            .changed()
+                        {
+                            params.smoothing = smoothing.then_some(SavitzkyGolay {
+                                window: 11,
+                                polynomial_order: 3,
+                            });
+                            changed = true;
+                        }
+                        if let Some(settings) = &mut params.smoothing {
+                            ui.horizontal(|ui| {
+                                ui.label("Window");
+                                let mut window = settings.window;
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut window)
+                                            .range(3..=MAX_SAVGOL_WINDOW)
+                                            .speed(2),
+                                    )
+                                    .changed()
+                                {
+                                    settings.window = window | 1;
+                                    changed = true;
+                                }
+                                ui.label("Order");
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut settings.polynomial_order)
+                                            .range(1..=MAX_SAVGOL_ORDER),
+                                    )
+                                    .changed();
+                            });
+                            if settings.polynomial_order >= settings.window as u8 {
+                                settings.polynomial_order = (settings.window - 1) as u8;
+                            }
+                        }
+                        egui::ComboBox::from_label("Normalize")
+                            .selected_text(match params.normalization {
+                                XrdNormalization::None => "None",
+                                XrdNormalization::Maximum => "Maximum intensity",
+                                XrdNormalization::Area => "Integrated area",
+                            })
+                            .show_ui(ui, |ui| {
+                                changed |= ui
+                                    .selectable_value(
+                                        &mut params.normalization,
+                                        XrdNormalization::None,
+                                        "None",
+                                    )
+                                    .changed();
+                                changed |= ui
+                                    .selectable_value(
+                                        &mut params.normalization,
+                                        XrdNormalization::Maximum,
+                                        "Maximum intensity",
+                                    )
+                                    .changed();
+                                changed |= ui
+                                    .selectable_value(
+                                        &mut params.normalization,
+                                        XrdNormalization::Area,
+                                        "Integrated area",
+                                    )
+                                    .changed();
+                            });
+                        action_bar(app, ui);
+                    },
+                );
+            }
+        });
+    });
+    if reset {
+        params = XrdProcessing::default();
+        changed = true;
+    }
+    if changed {
+        app.commit_processing_edit(di, before, DatasetProcessingState::Xrd(params));
+    }
     if toggle {
         app.session.ui.processing_task_collapsed = !collapsed;
     }

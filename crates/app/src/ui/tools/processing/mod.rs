@@ -8,6 +8,7 @@ use egui_phosphor::regular as icon;
 use plotx_core::actions::DatasetProcessingState;
 use plotx_core::automation::{ResourceRef, TargetRef};
 use plotx_core::state::{Dataset, DatasetId, PhaseAxis, PlotxApp};
+use plotx_processing::xrd::XrdProcessing;
 use plotx_processing::{
     Apodization, AxisPipeline, BaselineMethod, BinParams, NormalizeMethod, PhaseParams,
     ProcessingStep, ReferenceParams, SmoothMethod, StepId, StepKind, StepSource, ZeroFill,
@@ -176,7 +177,8 @@ fn add_step_menu(app: &mut PlotxApp, di: usize, axis: PhaseAxis, ui: &mut Ui) {
         Dataset::Table(_)
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
-        | Dataset::MassSpec(_) => return,
+        | Dataset::MassSpec(_)
+        | Dataset::Xrd(_) => return,
     };
     let Some(pipeline) = dataset.axis_pipeline(axis) else {
         return;
@@ -325,7 +327,8 @@ fn apply_row_op(app: &mut PlotxApp, di: usize, axis: PhaseAxis, id: StepId, op: 
         Dataset::Table(_)
         | Dataset::Electrophysiology(_)
         | Dataset::Afm(_)
-        | Dataset::MassSpec(_) => return,
+        | Dataset::MassSpec(_)
+        | Dataset::Xrd(_) => return,
     };
     let before = DatasetProcessingState::from_dataset(dataset);
     let mut after = before.clone();
@@ -472,6 +475,7 @@ fn is_default_processing(dataset: &Dataset) -> bool {
                 ..
             },
         ) => ga == gb && a.layout == b.layout && pipe_eq(&a.f2, &b.f2) && pipe_eq(&a.f1, &b.f1),
+        (DatasetProcessingState::Xrd(a), DatasetProcessingState::Xrd(b)) => a == b,
         _ => false,
     }
 }

@@ -1,4 +1,4 @@
-use egui::{Area, Button, Order, Ui};
+use egui::{Button, Ui};
 use egui_phosphor::regular as icon;
 use plotx_core::actions::Action;
 use plotx_core::state::{
@@ -70,82 +70,80 @@ pub(crate) fn render_task(app: &mut PlotxApp, host: &mut Ui) {
     let mut toggle_collapse = false;
     let mut open_table = false;
 
-    Area::new(egui::Id::new("region_task_card"))
-        .order(Order::Foreground)
-        .fixed_pos(pos)
-        .show(host.ctx(), |ui| {
-            ui.set_width(width);
-            crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
-                if task_card::tab_bar(app, TaskDockTab::Regions, ui) {
-                    ui.separator();
-                }
-                let count = app.doc.datasets[di]
-                    .region_analysis()
-                    .map_or(0, |state| state.regions.len());
-                ui.horizontal(|ui| {
-                    ui.label(crate::typography::headline("Regions"));
-                    let state = if app.session.tool == Tool::Regions {
-                        if count == 0 {
-                            "Drawing".to_owned()
-                        } else {
-                            format!("Drawing · {count}")
-                        }
-                    } else if count == 1 {
-                        "1 region".to_owned()
+    let area_id = egui::Id::new("region_task_card");
+    task_card::area(host, area_id, pos).show(host.ctx(), |ui| {
+        ui.set_width(width);
+        crate::ui::card_frame(dark, egui::Margin::ZERO).show(ui, |ui| {
+            if task_card::tab_bar(app, TaskDockTab::Regions, ui) {
+                ui.separator();
+            }
+            let count = app.doc.datasets[di]
+                .region_analysis()
+                .map_or(0, |state| state.regions.len());
+            task_card::header(ui, area_id, |ui| {
+                ui.label(crate::typography::headline("Regions"));
+                let state = if app.session.tool == Tool::Regions {
+                    if count == 0 {
+                        "Drawing".to_owned()
                     } else {
-                        format!("{count} regions")
+                        format!("Drawing · {count}")
+                    }
+                } else if count == 1 {
+                    "1 region".to_owned()
+                } else {
+                    format!("{count} regions")
+                };
+                ui.weak(state);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(icon::X)
+                        .on_hover_text("Close region tools")
+                        .clicked()
+                    {
+                        close = true;
+                    }
+                    let glyph = if collapsed {
+                        icon::CARET_DOWN
+                    } else {
+                        icon::CARET_UP
                     };
-                    ui.weak(state);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(icon::X)
-                            .on_hover_text("Close region tools")
-                            .clicked()
-                        {
-                            close = true;
-                        }
-                        let glyph = if collapsed {
-                            icon::CARET_DOWN
+                    if ui
+                        .small_button(glyph)
+                        .on_hover_text(if collapsed {
+                            "Expand region tools"
                         } else {
-                            icon::CARET_UP
-                        };
-                        if ui
-                            .small_button(glyph)
-                            .on_hover_text(if collapsed {
-                                "Expand region tools"
-                            } else {
-                                "Collapse region tools"
-                            })
+                            "Collapse region tools"
+                        })
+                        .clicked()
+                    {
+                        toggle_collapse = true;
+                    }
+                    if collapsed
+                        && count > 0
+                        && ui
+                            .small_button(icon::TABLE)
+                            .on_hover_text("View extracted curves")
                             .clicked()
-                        {
-                            toggle_collapse = true;
-                        }
-                        if collapsed
-                            && count > 0
-                            && ui
-                                .small_button(icon::TABLE)
-                                .on_hover_text("View extracted curves")
-                                .clicked()
-                        {
-                            open_table = true;
-                        }
-                    });
+                    {
+                        open_table = true;
+                    }
                 });
-                if !collapsed {
-                    ui.separator();
-                    egui::Resize::default()
-                        .id_salt("region_task_body_resize")
-                        .default_size([ui.available_width(), default_body_height])
-                        .min_size([ui.available_width(), min_body_height])
-                        .max_size([ui.available_width(), max_body_height])
-                        .resizable([false, true])
-                        .with_stroke(false)
-                        .show(ui, |ui| {
-                            region_task_body(app, di, ui);
-                        });
-                }
             });
+            if !collapsed {
+                ui.separator();
+                task_card::resizable_body(
+                    ui,
+                    "region_task_body_resize",
+                    default_body_height,
+                    min_body_height,
+                    max_body_height,
+                    |ui| {
+                        region_task_body(app, di, ui);
+                    },
+                );
+            }
         });
+    });
 
     if toggle_collapse {
         app.session.ui.region_task_collapsed = !collapsed;

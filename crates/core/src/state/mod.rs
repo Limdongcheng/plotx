@@ -105,6 +105,7 @@ mod ui_drag;
 mod ui_state;
 mod units;
 mod workflow_tab;
+mod xrd;
 
 pub use afm::*;
 pub use app_impl::*;
@@ -174,6 +175,7 @@ pub use ui_drag::*;
 pub use ui_state::*;
 pub use units::*;
 pub use workflow_tab::WorkflowTab;
+pub use xrd::*;
 
 /// Points per millimetre (72 pt/inch ÷ 25.4 mm/inch), for sizing print figures.
 pub const MM_TO_PT: f32 = 72.0 / 25.4;

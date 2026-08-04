@@ -44,9 +44,18 @@ pub(super) fn validate_action(
                 validate_action(app, child, shape)?;
             }
         }
-        Action::RenameDataset { dataset, .. } | Action::UpdateDatasetProcessing { dataset, .. } => {
+        Action::RenameDataset { dataset, .. } => {
             if !shape.has_dataset(app, *dataset) {
                 return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
+            }
+        }
+        Action::UpdateDatasetProcessing { dataset, after, .. } => {
+            if !shape.has_dataset(app, *dataset) {
+                return Err(ActionApplyError::StaleTarget(format!("dataset {dataset}")));
+            }
+            if let Some(index) = app.doc.dataset_index(*dataset) {
+                super::processing::validate_processing_state(&app.doc.datasets[index], after)
+                    .map_err(ActionApplyError::InvalidValue)?;
             }
         }
         Action::SetMassSpecStream {

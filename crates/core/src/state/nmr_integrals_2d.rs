@@ -219,7 +219,7 @@ mod tests {
         phase.auto = None;
         phase.phase0 = PI;
 
-        app.set_dataset_processing_state(0, &state);
+        app.set_dataset_processing_state(0, &state).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         while app.compute_busy() && std::time::Instant::now() < deadline {
             app.poll_compute();

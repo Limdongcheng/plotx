@@ -33,7 +33,11 @@ impl PlotxApp {
     pub fn cancel_interaction(&mut self) {
         match self.take_interaction() {
             Interaction::Phase(drag) => {
-                self.set_dataset_processing_state(drag.dataset, &drag.gesture_before);
+                if let Err(error) =
+                    self.set_dataset_processing_state(drag.dataset, &drag.gesture_before)
+                {
+                    self.session.status = error;
+                }
             }
             Interaction::Region(drag) => {
                 if let Some(state) = self

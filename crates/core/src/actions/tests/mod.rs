@@ -3,7 +3,6 @@ use crate::state::{
     ACS_DOUBLE_COLUMN, AxisRange, CanvasDocument, CanvasSizeUnit, DEFAULT_CANVAS_SIZE_MM,
     NATURE_SINGLE_COLUMN, NmrDataset, PAPER_A4, PRESENTATION_16X9, matching_preset,
 };
-
 mod align;
 mod arithmetic;
 mod authoring;
@@ -19,6 +18,7 @@ mod stable_identity;
 mod stack;
 mod symmetry;
 mod tiling;
+mod xrd;
 use num_complex::Complex64;
 use plotx_io::{Domain, NmrData};
 use std::f64::consts::TAU;

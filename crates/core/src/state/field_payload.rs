@@ -144,6 +144,19 @@ impl super::Dataset {
                     ),
                 })
             }),
+            Self::Xrd(dataset) => (dataset.field_id() == Some(id)).then(|| {
+                FieldPayload::Curve1D(Curve1D {
+                    x: Arc::from(dataset.data.two_theta_deg.clone()),
+                    values: Arc::from(
+                        dataset
+                            .processed
+                            .intensity
+                            .iter()
+                            .map(|value| *value as f32)
+                            .collect::<Vec<_>>(),
+                    ),
+                })
+            }),
         }
     }
 
@@ -196,6 +209,9 @@ impl super::Dataset {
                     .then_some(FieldRepresentation::Curve1D)
             }
             Self::MassSpec(dataset) => dataset.field_representation(id),
+            Self::Xrd(dataset) => {
+                (dataset.field_id() == Some(id)).then_some(FieldRepresentation::Curve1D)
+            }
         }
     }
 
@@ -246,6 +262,13 @@ impl super::Dataset {
                     Self::Electrophysiology(dataset) => (dataset.data.source.as_str(), None),
                     Self::Afm(dataset) => (dataset.data.source.as_str(), None),
                     Self::MassSpec(dataset) => (dataset.run.source.as_str(), None),
+                    Self::Xrd(dataset) => (
+                        dataset.data.source.as_str(),
+                        Some(FieldAlgorithmProvenance {
+                            algorithm: "xrd.process".to_owned(),
+                            version: 1,
+                        }),
+                    ),
                 };
                 FieldCatalog::make_provenance(source, id, algorithm)
             })
