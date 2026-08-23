@@ -335,7 +335,9 @@ pub fn complex_from_bytes(raw: &[u8]) -> Result<Vec<Complex64>> {
         )));
     }
     Ok(raw
-        .chunks_exact(16)
+        .as_chunks::<16>()
+        .0
+        .iter()
         .map(|chunk| {
             let mut re = [0u8; 8];
             let mut im = [0u8; 8];
@@ -587,6 +589,7 @@ pub fn tool_to_str(v: Tool) -> &'static str {
         Tool::ManualPhase => "manual_phase",
         Tool::SelectRegion => "select_region",
         Tool::Regions => "regions",
+        Tool::CraftRegions => "craft_regions",
         Tool::Integrate => "integrate",
         Tool::Peaks => "peaks",
         Tool::InspectCursor => "inspect_cursor",
@@ -612,6 +615,7 @@ pub fn tool_from_str(v: &str) -> Tool {
         "manual_phase" => Tool::ManualPhase,
         "select_region" => Tool::SelectRegion,
         "regions" => Tool::Regions,
+        "craft_regions" => Tool::CraftRegions,
         "integrate" => Tool::Integrate,
         "peaks" | "pick_peak" => Tool::Peaks,
         "inspect_cursor" => Tool::InspectCursor,
