@@ -123,7 +123,7 @@ pub(crate) fn handle_peaks(
         )
     });
 
-    let resolved = peaks.resolve();
+    let resolved = peaks.resolve(app.doc.datasets[dataset].peak_reference_offset_ppm());
     peak_context_menu(app, dataset, &resolved, &sc, hover, resp);
 
     if esc {
