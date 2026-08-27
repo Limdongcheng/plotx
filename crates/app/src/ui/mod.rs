@@ -1,3 +1,4 @@
+pub(crate) mod affordance;
 pub(crate) mod align;
 pub(crate) mod arithmetic;
 pub(crate) mod batch_workflow;
