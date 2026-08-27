@@ -133,6 +133,16 @@ fn execute_inner(
                 _ => format!("Fit {count} selected frames to view."),
             };
         }
+        CommandId::FitPlotY => {
+            if super::canvas::fit_plot_viewport(app, ctx, super::canvas::PlotFitAxes::Y) {
+                app.session.status = "Fit intensity to the visible window.".into();
+            }
+        }
+        CommandId::FitPlotXY => {
+            if super::canvas::fit_plot_viewport(app, ctx, super::canvas::PlotFitAxes::Both) {
+                app.session.status = "Fit plot to the full data range.".into();
+            }
+        }
         CommandId::UiScaleUp => crate::scale::nudge_ui_zoom(app, ctx, 1),
         CommandId::UiScaleDown => crate::scale::nudge_ui_zoom(app, ctx, -1),
         CommandId::UiScaleReset => crate::scale::reset_ui_zoom(app, ctx),

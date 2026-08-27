@@ -116,6 +116,7 @@ pub fn render(
         || batch_workflow.is_open();
     if !modal_open {
         primary_sidebar::selection::handle_keyboard_selection(app, &ctx);
+        handle_plot_fit_shortcut(app, clipboard_table_paste, &ctx);
         handle_command_shortcuts(app, clipboard_table_paste, &ctx);
         handle_escape_shortcut(app, &ctx);
         handle_rename_shortcut(app, &ctx);

@@ -62,6 +62,7 @@ mod slices;
 mod snap;
 mod symmetry;
 mod tiling;
+mod view_fit;
 
 pub(crate) use authoring::*;
 pub(crate) use board::*;
@@ -91,6 +92,7 @@ pub(crate) use slices::*;
 pub(crate) use snap::*;
 pub(crate) use symmetry::*;
 pub(crate) use tiling::*;
+pub(crate) use view_fit::*;
 
 fn finite_rect_intersects(a: egui::Rect, b: egui::Rect) -> bool {
     let finite = |r: egui::Rect| {
@@ -146,9 +148,7 @@ pub fn render_central(app: &mut PlotxApp, ui: &mut Ui) {
     let geometry = super::workspace_geometry(app, resp.rect, ui.ctx());
     let rect = geometry.board_rect;
     let painter = painter.with_clip_rect(rect);
-    ui.ctx().data_mut(|data| {
-        data.insert_temp(egui::Id::new("plotx.canvas.navigation_rect"), rect);
-    });
+    store_navigation_rect(ui.ctx(), rect);
     let chrome = ChromeStyle::from_visuals(ui.visuals(), app.settings.appearance.canvas_accent);
     consume_board_reveal(app, ui.ctx());
     drive_board_fit(app, ui, &geometry);
