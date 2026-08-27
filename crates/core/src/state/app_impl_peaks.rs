@@ -210,13 +210,15 @@ impl PlotxApp {
         self.execute_action(Action::set_peaks(dataset_id, before, after));
     }
 
-    /// Place a hand-picked peak, snapping the clicked `x` to the nearest local
-    /// maximum of the displayed trace.
+    /// Place a hand-picked peak, resolving the clicked `x` per `snap` — an
+    /// apex search within a zoom-derived window, or the nearest sample for the
+    /// modifier-click free placement.
     pub fn add_manual_peak(
         &mut self,
         dataset: usize,
         x: f64,
         column: Option<plotx_data::ColumnId>,
+        snap: ManualPeakSnap,
     ) {
         let column_id = table_peak_column(&self.doc.datasets, dataset, column);
         let Some(trace) = self
@@ -228,7 +230,7 @@ impl PlotxApp {
             self.session.status = "Peaks are available for 1D traces only.".into();
             return;
         };
-        let (px, py) = trace.snap(x);
+        let (px, py) = trace.pick(x, snap);
         self.edit_peaks(dataset, |peaks| {
             peaks.column = column_id;
             let id = peaks.next_id();
