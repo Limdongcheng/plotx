@@ -55,8 +55,15 @@ the cursor, or on the board when the cursor is over empty space.
 | Drag on an axis strip | Select a range on that axis to zoom into |
 | Double-click a plot | Reset both axes to full range |
 | Double-click an axis strip | Reset that axis only |
-| `F` | Zoom the board to fit the selected frames (everything when nothing is selected) |
+| `H` | Fit the y axis to the data visible in the current x window (the x window stays put) |
+| `F` over a plot body | Fit both axes of that plot to the full data range |
+| `F` elsewhere | Zoom the board to fit the selected frames (everything when nothing is selected) |
 | `Enter` | Zoom the board to the selected page or sheet |
+
+`H` acts on the plot under the pointer, or on the active plot when the pointer
+is elsewhere — the vertical-fit convention NMR software users expect. Both fits
+are single undoable steps, and both are available from the command palette as
+**Fit Plot Vertically** and **Fit Plot to Data**.
 
 Hovering a plot body or an axis strip outlines the area the wheel will act on
 and names the action in its top-left corner, including which setting `Alt` +

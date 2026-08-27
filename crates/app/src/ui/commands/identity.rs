@@ -132,6 +132,16 @@ pub(super) fn command_identity(
         ),
         CommandId::ZoomToFit => ("Zoom to Fit".into(), Some(icon::ARROWS_OUT), None),
         CommandId::ZoomToSelection => ("Zoom to Selection".into(), None, None),
+        CommandId::FitPlotY => (
+            "Fit Plot Vertically".into(),
+            Some(icon::ARROWS_VERTICAL),
+            None,
+        ),
+        CommandId::FitPlotXY => (
+            "Fit Plot to Data".into(),
+            Some(icon::ARROWS_OUT_SIMPLE),
+            None,
+        ),
         CommandId::UiScaleUp => (
             ui_scale_label(app, "Increase UI Scale"),
             Some(icon::MAGNIFYING_GLASS_PLUS),
@@ -421,6 +431,8 @@ fn simple_stable_id(id: CommandId) -> &'static str {
         CommandId::ToggleSecondarySidebar => "view.secondary_sidebar",
         CommandId::ZoomToFit => "view.zoom_fit",
         CommandId::ZoomToSelection => "view.zoom_selection",
+        CommandId::FitPlotY => "view.fit_plot_y",
+        CommandId::FitPlotXY => "view.fit_plot_xy",
         CommandId::UiScaleUp => "view.ui_scale_up",
         CommandId::UiScaleDown => "view.ui_scale_down",
         CommandId::UiScaleReset => "view.ui_scale_reset",
