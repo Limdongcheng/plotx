@@ -414,7 +414,8 @@ fn build_nmr_spectrum(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> 
     Some(build_processed_1d_figure(
         &n.data,
         &n.processed,
-        &n.peaks.resolve(),
+        &n.peaks
+            .resolve(n.pipeline.chemical_shift_reference_offset_ppm()),
     ))
 }
 
@@ -473,7 +474,7 @@ fn build_nmr_2d(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
 
 fn build_table_line(dataset: &Dataset, _ctx: &ChartContext) -> Option<Figure> {
     let t = dataset.as_table()?;
-    Some(apply_peak_labels(t.figure(), &t.peaks.resolve()))
+    Some(apply_peak_labels(t.figure(), &t.peaks.resolve(0.0)))
 }
 
 fn build_table_bar(dataset: &Dataset, ctx: &ChartContext) -> Option<Figure> {

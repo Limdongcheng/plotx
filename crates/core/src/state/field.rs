@@ -514,7 +514,8 @@ impl super::Dataset {
                         Some(crate::figures::build_processed_1d_figure(
                             &nmr.data,
                             &nmr.processed,
-                            &nmr.peaks.resolve(),
+                            &nmr.peaks
+                                .resolve(nmr.pipeline.chemical_shift_reference_offset_ppm()),
                         ))
                     },
                     |spec| nmr.craft_field_figure(spec),
@@ -527,7 +528,7 @@ impl super::Dataset {
             Self::Table(table) => match encoding {
                 SeriesEncoding::Line(_) => Some(crate::figures::apply_peak_labels(
                     table.figure(),
-                    &table.peaks.resolve(),
+                    &table.peaks.resolve(0.0),
                 )),
                 SeriesEncoding::Contour(_)
                 | SeriesEncoding::Heatmap(_)

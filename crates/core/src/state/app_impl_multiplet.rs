@@ -55,7 +55,7 @@ impl PlotxApp {
         if peaks.is_empty() {
             let marks = self.doc.datasets[dataset]
                 .peaks()
-                .map(|p| p.resolve())
+                .map(|p| p.resolve(self.doc.datasets[dataset].peak_reference_offset_ppm()))
                 .unwrap_or_default();
             for m in marks.iter().filter(|m| m.x >= lo && m.x <= hi) {
                 peaks.push(MultipletPeak {

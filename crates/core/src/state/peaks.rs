@@ -88,6 +88,12 @@ pub enum PeakOrigin {
 
 /// One peak: a labelled `(x, y)` apex. `label` overrides the shift-formatted
 /// default when set.
+///
+/// `x` is stored *uncalibrated*: the finished-spectrum position minus the
+/// pipeline's chemical-shift reference offset at pick time. Readers add the
+/// current offset back through [`PeakSet::resolve`], so marks follow the
+/// spectrum when a Reference step is edited instead of freezing at the old
+/// axis. `y` remains a pick-time intensity snapshot.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PeakMark {
     pub id: u64,
@@ -186,11 +192,13 @@ impl PeakSet {
 
     /// Re-run detection at the stored threshold: replace every detected mark with a
     /// fresh set, leaving hand-placed marks (and any detection coincident with one)
-    /// untouched.
-    pub fn redetect(&mut self, trace: &Trace1d) {
+    /// untouched. `reference_offset_ppm` is the calibration currently applied
+    /// to the finished `trace`; detections are stored uncalibrated.
+    pub fn redetect(&mut self, trace: &Trace1d, reference_offset_ppm: f64) {
         self.marks.retain(|m| m.origin == PeakOrigin::Manual);
         let tol = x_tolerance(trace);
         for (x, y) in Self::detect_at(trace, self.detector.threshold, self.detector.max_count) {
+            let x = x - reference_offset_ppm;
             if self.marks.iter().any(|m| (m.x - x).abs() <= tol) {
                 continue;
             }
@@ -234,15 +242,21 @@ impl PeakSet {
             .collect()
     }
 
-    pub fn resolve(&self) -> Vec<ResolvedPeak> {
+    /// Marks in finished-spectrum coordinates: the stored uncalibrated x plus
+    /// the pipeline's *current* chemical-shift reference offset, so labels
+    /// follow a Reference edit instead of pinning the pick-time axis.
+    pub fn resolve(&self, reference_offset_ppm: f64) -> Vec<ResolvedPeak> {
         self.marks
             .iter()
-            .map(|m| ResolvedPeak {
-                x: m.x,
-                y: m.y,
-                label: m.label.clone().unwrap_or_else(|| default_label(m.x)),
-                origin: m.origin,
-                mark_id: Some(m.id),
+            .map(|m| {
+                let x = m.x + reference_offset_ppm;
+                ResolvedPeak {
+                    x,
+                    y: m.y,
+                    label: m.label.clone().unwrap_or_else(|| default_label(x)),
+                    origin: m.origin,
+                    mark_id: Some(m.id),
+                }
             })
             .collect()
     }

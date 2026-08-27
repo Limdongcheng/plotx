@@ -245,6 +245,17 @@ impl Dataset {
     }
 
     /// The dataset's peak set, for domains that carry one (1D spectra and tables).
+    /// The net chemical-shift reference translation currently applied to the
+    /// dataset's finished 1D trace. Peak marks store uncalibrated positions
+    /// (finished x minus this value), so every reader resolves through it;
+    /// domains without reference steps calibrate by zero.
+    pub fn peak_reference_offset_ppm(&self) -> f64 {
+        match self {
+            Dataset::Nmr(d) => d.pipeline.chemical_shift_reference_offset_ppm(),
+            _ => 0.0,
+        }
+    }
+
     pub fn peaks(&self) -> Option<&PeakSet> {
         match self {
             Dataset::Nmr(d) => Some(&d.peaks),

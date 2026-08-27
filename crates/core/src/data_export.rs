@@ -372,7 +372,7 @@ impl DataExportSnapshot {
                 dataset
                     .peaks()
                     .ok_or(DataExportError::ContentUnavailable)?
-                    .resolve(),
+                    .resolve(dataset.peak_reference_offset_ppm()),
             ),
             DataExportContent::Integrals => {
                 if let Some(nmr) = dataset.as_nmr() {

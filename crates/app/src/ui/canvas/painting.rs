@@ -592,7 +592,7 @@ pub(crate) fn paint_peaks(
         }
     }
 
-    let resolved = peaks.resolve();
+    let resolved = peaks.resolve(app.doc.datasets[dataset].peak_reference_offset_ppm());
     let selected = app.session.ui.selected_peak;
     for peak in &resolved {
         let p = Pos2::new(sx(peak.x), sy(peak.y));
