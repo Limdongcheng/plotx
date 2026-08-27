@@ -179,6 +179,126 @@ fn title_drag_moves_the_shared_task_card() {
 }
 
 #[test]
+fn sidebar_toggle_keeps_a_parked_card_and_its_drag_gesture() {
+    let ctx = egui::Context::default();
+    let mut fonts = egui::FontDefinitions::default();
+    let emphasized = fonts.families[&egui::FontFamily::Proportional].clone();
+    fonts.families.insert(
+        egui::FontFamily::Name(crate::typography::EMPHASIZED_FAMILY_NAME.into()),
+        emphasized,
+    );
+    ctx.set_fonts(fonts);
+    crate::typography::apply(&ctx);
+    let screen = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1400.0, 800.0));
+    let mut app = app_with_task(TaskDockTab::Processing, false);
+    app.session.active_canvas = Some(0);
+    app.session.secondary_sidebar_visible = true;
+    let mut clipboard = crate::ui::clipboard_table::ClipboardTablePaste::default();
+    let mut workflow = crate::ui::batch_workflow::AutomationUi::default();
+    let mut title = None;
+    let id = area_id(TaskDockTab::Processing);
+    let mut frame = |app: &mut PlotxApp, events: Vec<egui::Event>| {
+        let _ = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                crate::ui::render(
+                    app,
+                    &mut clipboard,
+                    &mut workflow,
+                    &mut title,
+                    ui,
+                    false,
+                    crate::ui::RibbonChrome::default(),
+                );
+            },
+        );
+    };
+    let press = |pos: Pos2| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::default(),
+    };
+    let release = |pos: Pos2| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::default(),
+    };
+    for _ in 0..4 {
+        frame(&mut app, Vec::new());
+    }
+    let card = ctx.memory(|m| m.area_rect(id)).expect("card rendered");
+
+    // Park the card away from every boundary by dragging its title.
+    let grab = card.min + egui::vec2(30.0, 12.0);
+    frame(&mut app, vec![egui::Event::PointerMoved(grab)]);
+    frame(&mut app, vec![egui::Event::PointerMoved(grab), press(grab)]);
+    let target = egui::pos2(700.0, 250.0);
+    frame(&mut app, vec![egui::Event::PointerMoved(target)]);
+    frame(&mut app, vec![release(target)]);
+    frame(&mut app, Vec::new());
+    let parked = ctx.memory(|m| m.area_rect(id)).expect("card rendered");
+    assert_eq!(parked.min, card.min + (target - grab));
+
+    // Hiding the secondary sidebar must not teleport the parked card.
+    app.session.secondary_sidebar_visible = false;
+    frame(&mut app, Vec::new());
+    frame(&mut app, Vec::new());
+    let after_hide = ctx.memory(|m| m.area_rect(id)).expect("card rendered");
+    assert_eq!(after_hide, parked);
+
+    // The next title drag moves the card by exactly the pointer travel.
+    let grab = after_hide.min + egui::vec2(30.0, 12.0);
+    frame(&mut app, vec![egui::Event::PointerMoved(grab)]);
+    frame(&mut app, vec![egui::Event::PointerMoved(grab), press(grab)]);
+    let target = grab + egui::vec2(-120.0, -40.0);
+    frame(&mut app, vec![egui::Event::PointerMoved(target)]);
+    frame(&mut app, vec![release(target)]);
+    frame(&mut app, Vec::new());
+    let dragged = ctx.memory(|m| m.area_rect(id)).expect("card rendered");
+    assert_eq!(dragged.min, after_hide.min + (target - grab));
+}
+
+#[test]
+fn bounds_change_keeps_a_parked_card_in_place() {
+    let bounds = egui::Rect::from_min_max(egui::pos2(200.0, 0.0), egui::pos2(1112.0, 700.0));
+    // Parked with a clear gap to the right boundary, but still right-anchored.
+    let original = layout(
+        egui::Rect::from_min_max(egui::pos2(660.0, 120.0), egui::pos2(1000.0, 560.0)),
+        bounds,
+    );
+    let without_sidebar =
+        egui::Rect::from_min_max(egui::pos2(200.0, 0.0), egui::pos2(1396.0, 700.0));
+
+    let fitted = fit_layout(original, without_sidebar, Vec2::new(340.0, 440.0), false);
+
+    assert_eq!(fitted.rect, original.rect);
+}
+
+#[test]
+fn a_card_displaced_by_a_sidebar_returns_when_it_hides() {
+    let wide = egui::Rect::from_min_max(egui::pos2(200.0, 0.0), egui::pos2(1396.0, 700.0));
+    let original = layout(
+        egui::Rect::from_min_max(egui::pos2(816.0, 40.0), egui::pos2(1156.0, 480.0)),
+        wide,
+    );
+    let with_sidebar = egui::Rect::from_min_max(egui::pos2(200.0, 0.0), egui::pos2(1112.0, 700.0));
+    let size = Vec2::new(340.0, 440.0);
+
+    let displaced = fit_layout(original, with_sidebar, size, false);
+    assert_eq!(displaced.rect.right(), with_sidebar.right());
+    assert_eq!(displaced.preferred, original.preferred);
+
+    let restored = fit_layout(displaced, wide, size, false);
+    assert_eq!(restored.rect, original.rect);
+}
+
+#[test]
 fn collapsed_cards_use_the_compact_width_without_overwriting_the_preference() {
     let app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
     let board = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1_000.0, 700.0));
@@ -296,6 +416,7 @@ fn shrinking_from_the_left_keeps_the_right_edge_fixed() {
 fn layout(rect: egui::Rect, bounds: egui::Rect) -> CardLayout {
     CardLayout {
         rect,
+        preferred: rect,
         bounds,
         horizontal: HorizontalAnchor::Right,
         vertical: VerticalAnchor::Top,

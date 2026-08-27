@@ -70,11 +70,13 @@ pub(super) fn geometry(
             chrome + preferred_body
         },
     );
+    let initial_rect = egui::Rect::from_min_size(
+        host_rect.right_top() + egui::vec2(-desired_size.x, TOP_OFFSET),
+        desired_size,
+    );
     let initial = CardLayout {
-        rect: egui::Rect::from_min_size(
-            host_rect.right_top() + egui::vec2(-desired_size.x, TOP_OFFSET),
-            desired_size,
-        ),
+        rect: initial_rect,
+        preferred: initial_rect,
         bounds: host_rect,
         horizontal: HorizontalAnchor::Right,
         vertical: VerticalAnchor::Top,
@@ -313,6 +315,7 @@ fn update_drag_position(ui: &Ui, area_id: Id, drag: &egui::Response) {
                 .get_temp::<CardLayout>(area_id.with("layout"))
                 .unwrap_or(CardLayout {
                     rect: origin.rect,
+                    preferred: origin.rect,
                     bounds,
                     horizontal: HorizontalAnchor::Right,
                     vertical: VerticalAnchor::Top,
@@ -321,6 +324,7 @@ fn update_drag_position(ui: &Ui, area_id: Id, drag: &egui::Response) {
                     collapsed: false,
                 });
             layout.rect = rect;
+            layout.preferred = rect;
             layout.bounds = bounds;
             layout.horizontal = if rect.left() - bounds.left() <= bounds.right() - rect.right() {
                 HorizontalAnchor::Left
@@ -573,6 +577,7 @@ pub(super) fn resize_handles(
         ui.ctx().data_mut(|data| {
             if let Some(mut layout) = data.get_temp::<CardLayout>(area_id.with("layout")) {
                 layout.rect = resized;
+                layout.preferred = resized;
                 layout.bounds = bounds;
                 if edges.left {
                     layout.horizontal = HorizontalAnchor::Right;
