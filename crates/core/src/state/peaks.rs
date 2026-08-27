@@ -20,15 +20,29 @@ impl Trace1d {
         x_tolerance(self)
     }
 
-    /// Snap `x` to the tallest local maximum within a small window, so a click near
-    /// a peak lands on its apex. Falls back to the nearest sample.
-    pub fn snap(&self, x: f64) -> (f64, f64) {
+    /// Resolve a manual pick at `x` per `snap`. See [`ManualPeakSnap`].
+    pub fn pick(&self, x: f64, snap: ManualPeakSnap) -> (f64, f64) {
+        match snap {
+            ManualPeakSnap::Apex { half_width } => self.snap_within(x, half_width),
+            ManualPeakSnap::NearestSample => self.nearest_sample(x),
+        }
+    }
+
+    /// Snap `x` to the tallest local maximum within ± `half_width` (data
+    /// units), so a click near a peak lands on its apex. Falls back to the
+    /// nearest sample when the window holds no local maximum.
+    ///
+    /// Callers derive `half_width` from screen pixels: zooming in narrows the
+    /// data window in step with the click precision the zoom affords, which is
+    /// what lets a weak line be picked next to a strong one. Tallest-in-window
+    /// (rather than nearest local maximum) keeps zoomed-out clicks landing on
+    /// real peaks instead of the noise wiggle closest to the pointer.
+    pub fn snap_within(&self, x: f64, half_width: f64) -> (f64, f64) {
         let n = self.xs.len();
-        let window = x_tolerance(self) * 15.0;
         let mut best: Option<(f64, f64)> = None;
         for i in 1..n.saturating_sub(1) {
             let px = self.xs[i];
-            if (px - x).abs() > window {
+            if (px - x).abs() > half_width {
                 continue;
             }
             let v = self.ys[i];
@@ -36,15 +50,32 @@ impl Trace1d {
                 best = Some((px, v));
             }
         }
-        best.unwrap_or_else(|| {
-            self.xs
-                .iter()
-                .zip(&self.ys)
-                .min_by(|a, b| (a.0 - x).abs().partial_cmp(&(b.0 - x).abs()).unwrap())
-                .map(|(&px, &py)| (px, py))
-                .unwrap_or((x, 0.0))
-        })
+        best.unwrap_or_else(|| self.nearest_sample(x))
     }
+
+    /// The sample closest to `x`, with no apex search.
+    pub fn nearest_sample(&self, x: f64) -> (f64, f64) {
+        self.xs
+            .iter()
+            .zip(&self.ys)
+            .filter(|(px, py)| px.is_finite() && py.is_finite())
+            .min_by(|a, b| (a.0 - x).abs().partial_cmp(&(b.0 - x).abs()).unwrap())
+            .map(|(&px, &py)| (px, py))
+            .unwrap_or((x, 0.0))
+    }
+}
+
+/// How a manual pick chooses its apex from the clicked x position.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ManualPeakSnap {
+    /// Snap to the tallest local maximum within ± `half_width` data units.
+    /// UI callers convert a fixed pixel radius at the current zoom, so the
+    /// search window narrows as the user zooms in.
+    Apex { half_width: f64 },
+    /// No apex search: place on the sample nearest the click. The escape
+    /// hatch (modifier-click) for shoulders and signals snapping refuses to
+    /// resolve.
+    NearestSample,
 }
 
 /// Provenance only — both kinds are ordinary, individually editable marks.
@@ -229,6 +260,10 @@ fn baseline(ys: &[f64]) -> f64 {
     finite.sort_by(|a, b| a.partial_cmp(b).unwrap());
     finite[finite.len() / 2]
 }
+
+#[cfg(test)]
+#[path = "peaks_tests.rs"]
+mod tests;
 
 fn x_tolerance(trace: &Trace1d) -> f64 {
     let (lo, hi) = trace

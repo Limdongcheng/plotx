@@ -11,6 +11,13 @@ with [Choosing an analysis tool](/guides/choosing-a-tool/).
 The **Peaks** tool detects peaks by prominence. Drag the threshold line on
 the plot to adjust detection — peaks are recomputed when you release it.
 Detected peaks can be edited, added, and removed by hand.
+
+A click places one peak, snapped to the tallest apex within a small radius
+around the pointer. The radius is fixed on screen, so zooming in narrows it —
+zoom in to pick a weak line sitting next to a strong one. Hold `Shift` while
+clicking to skip the snap entirely and place the mark on the nearest data
+point (useful for shoulders). The hover preview shows exactly where the mark
+will land. Dragging across a range picks every prominent peak inside it.
 Choose **Export Data…** and **Peak table** to save or copy the current peak list.
 
 ## 1D NMR integrals

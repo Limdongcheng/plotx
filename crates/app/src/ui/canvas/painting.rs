@@ -649,7 +649,10 @@ pub(crate) fn paint_peaks(
         return;
     }
     let hover_x = screen_to_x(hp.x, plot, fig.x.min, fig.x.span(), fig.x.reversed);
-    let (px, py) = trace.snap(hover_x);
+    // The preview must resolve exactly as the click would, modifier included.
+    let shift = painter.ctx().input(|i| i.modifiers.shift);
+    let snap = super::peaks::manual_peak_snap(shift, fig.x.span(), plot.width);
+    let (px, py) = trace.pick(hover_x, snap);
     let at = Pos2::new(sx(px), sy(py));
     if plot_contains(plot, at) {
         painter.circle_stroke(at, 4.0, Stroke::new(1.5_f32, chrome.selection_active));

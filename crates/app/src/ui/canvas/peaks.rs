@@ -1,9 +1,27 @@
 use super::*;
-use plotx_core::state::{PeakBandDrag, PeakSet, PeakThresholdDrag, ResolvedPeak, Trace1d};
+use plotx_core::state::{
+    ManualPeakSnap, PeakBandDrag, PeakSet, PeakThresholdDrag, ResolvedPeak, Trace1d,
+};
 
 const PEAK_GRAB_PX: f32 = 10.0;
 const LINE_GRAB_PX: f32 = 6.0;
 const DRAG_DEADZONE_PX: f32 = 4.0;
+/// Pixel radius of the manual-pick apex search. Fixed in screen space so
+/// zooming in narrows the data window along with the click precision it
+/// affords, letting weak lines be picked next to strong ones.
+const PEAK_SNAP_PX: f32 = 12.0;
+
+/// The snap for a manual pick: an apex search over ± `PEAK_SNAP_PX` at the
+/// current zoom, or the nearest sample while `Shift` is held (free placement
+/// for shoulders the apex search refuses to land on).
+pub(crate) fn manual_peak_snap(shift: bool, x_span: f64, plot_width: f32) -> ManualPeakSnap {
+    if shift {
+        return ManualPeakSnap::NearestSample;
+    }
+    ManualPeakSnap::Apex {
+        half_width: x_span.abs() / f64::from(plot_width.max(1.0)) * f64::from(PEAK_SNAP_PX),
+    }
+}
 
 fn peak_hit(resolved: &[ResolvedPeak], sc: &Screen, p: Pos2) -> Option<u64> {
     let mut best: Option<(u64, f32)> = None;
@@ -93,7 +111,7 @@ pub(crate) fn handle_peaks(
         yrev: fig.y.reversed,
     };
 
-    let (hover, pressed, down, released, del, esc) = ui.input(|i| {
+    let (hover, pressed, down, released, del, esc, shift) = ui.input(|i| {
         (
             i.pointer.hover_pos(),
             i.pointer.primary_pressed(),
@@ -101,6 +119,7 @@ pub(crate) fn handle_peaks(
             i.pointer.primary_released(),
             i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace),
             i.key_pressed(egui::Key::Escape),
+            i.modifiers.shift,
         )
     });
 
@@ -146,7 +165,7 @@ pub(crate) fn handle_peaks(
             drag.current_x = sc.to_x(p.x.clamp(plot.left, plot.right()));
         }
         if released || !down {
-            finish_band_drag(app, dataset, &sc, column);
+            finish_band_drag(app, dataset, &sc, column, shift);
         }
         return;
     }
@@ -212,18 +231,20 @@ fn finish_threshold_drag(
 }
 
 /// A band wider than the click dead-zone picks every peak inside it; a narrower one
-/// is a plain click that places a single snapped peak.
+/// is a plain click that places a single snapped peak (`Shift` skips the snap).
 fn finish_band_drag(
     app: &mut PlotxApp,
     dataset: usize,
     sc: &Screen,
     column: Option<plotx_core::data::ColumnId>,
+    shift: bool,
 ) {
     let Interaction::PeakBand(drag) = app.take_interaction() else {
         return;
     };
     if (sc.x(drag.anchor_x) - sc.x(drag.current_x)).abs() < DRAG_DEADZONE_PX {
-        app.add_manual_peak(dataset, drag.anchor_x, column);
+        let snap = manual_peak_snap(shift, sc.xspan, sc.plot.width);
+        app.add_manual_peak(dataset, drag.anchor_x, column, snap);
     } else {
         app.add_peaks_in_range(dataset, drag.anchor_x, drag.current_x, column);
     }
