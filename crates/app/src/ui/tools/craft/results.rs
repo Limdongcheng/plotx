@@ -234,23 +234,24 @@ fn overview(
     });
     for (position, summary) in run.region_summaries.iter().enumerate() {
         let selected = app.session.ui.craft_component_region == Some(summary.region);
-        if ui
-            .selectable_label(
-                selected,
-                format!(
-                    "{} · {:.4}–{:.4} ppm · coherent amplitude {:.4} · {} component(s)",
-                    if exploratory {
-                        "Full bandwidth".into()
-                    } else {
-                        format!("Signal {}", position + 1)
-                    },
-                    summary.start_ppm,
-                    summary.end_ppm,
-                    summary.coherent_amplitude_t0,
-                    summary.component_count,
-                ),
-            )
-            .clicked()
+        if crate::ui::affordance::selectable_row(
+            ui,
+            selected,
+            egui_phosphor::regular::WAVEFORM,
+            format!(
+                "{} · {:.4}–{:.4} ppm · coherent amplitude {:.4} · {} component(s)",
+                if exploratory {
+                    "Full bandwidth".into()
+                } else {
+                    format!("Signal {}", position + 1)
+                },
+                summary.start_ppm,
+                summary.end_ppm,
+                summary.coherent_amplitude_t0,
+                summary.component_count,
+            ),
+        )
+        .clicked()
         {
             app.session.ui.craft_component_region = Some(summary.region);
             app.session.ui.craft_result_tab = CraftResultTab::Components;

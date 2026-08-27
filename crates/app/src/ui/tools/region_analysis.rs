@@ -247,9 +247,13 @@ fn region_task_body(app: &mut PlotxApp, di: usize, ui: &mut Ui) {
                         } else {
                             format!("{:.3}–{:.3} {axis_unit}", region.lo_min(), region.hi_max())
                         };
-                        if ui
-                            .add(Button::selectable(selected == Some(region.id), interval))
-                            .clicked()
+                        if crate::ui::affordance::selectable_row(
+                            ui,
+                            selected == Some(region.id),
+                            icon::SELECTION,
+                            interval,
+                        )
+                        .clicked()
                         {
                             select_id = Some(region.id);
                         }
