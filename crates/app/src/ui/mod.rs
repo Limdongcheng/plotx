@@ -154,6 +154,9 @@ pub fn render(
 
     // A sidebar may have changed an expanded Phase step before the canvas paints.
     app.sync_phase_interaction();
+    // Same for an armed Reference pick: collapsing its editor or switching
+    // datasets must not leave a live click trap on the plot.
+    app.sync_reference_pick();
     egui::CentralPanel::default()
         .frame(egui::Frame::new().fill(workspace_fill(dark)).inner_margin(
             central_workspace_margin(

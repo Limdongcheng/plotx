@@ -22,6 +22,13 @@ mod trace_composer;
 pub use trace_composer::{TraceComposerItem, TraceComposerState};
 mod trace_alignment;
 pub use trace_alignment::TraceAlignmentDialogState;
+#[path = "ui_state_dialogs.rs"]
+mod dialogs;
+pub use dialogs::{
+    AlignSpectraDialogState, CommandPaletteState, ProcessingSchemeDialogState,
+    ProcessingTemplateDialogState, SpectrumArithmeticDialogState, SpectrumArithmeticOp,
+    TemplateBrowserEntry,
+};
 #[path = "ui_state_rename.rs"]
 mod rename;
 pub use rename::{RenameState, RenameTarget};
@@ -99,92 +106,6 @@ impl SettingsDialog {
             last_error: None,
         }
     }
-}
-
-#[derive(Default)]
-pub struct CommandPaletteState {
-    pub query: String,
-    pub selected: usize,
-}
-
-pub enum ProcessingSchemeDialogState {
-    ResolvePending {
-        fallback_dataset: usize,
-    },
-    Review {
-        path: std::path::PathBuf,
-        plan: crate::project::SchemeApplicationPlan,
-        policy: crate::project::SchemeApplicationPolicy,
-    },
-}
-
-pub struct TemplateBrowserEntry {
-    pub name: String,
-    pub path: std::path::PathBuf,
-    pub scheme: Result<crate::project::ProcessingScheme, String>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum SpectrumArithmeticOp {
-    AddDataset,
-    SubtractDataset,
-    MultiplyConstant,
-    AddConstant,
-}
-
-impl SpectrumArithmeticOp {
-    pub const ALL: [Self; 4] = [
-        Self::AddDataset,
-        Self::SubtractDataset,
-        Self::MultiplyConstant,
-        Self::AddConstant,
-    ];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::AddDataset => "A + k·B",
-            Self::SubtractDataset => "A − k·B",
-            Self::MultiplyConstant => "A × k",
-            Self::AddConstant => "A + c",
-        }
-    }
-
-    pub fn is_binary(self) -> bool {
-        matches!(self, Self::AddDataset | Self::SubtractDataset)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct SpectrumArithmeticDialogState {
-    pub a: usize,
-    pub b: usize,
-    pub op: SpectrumArithmeticOp,
-    pub k: f64,
-    pub constant: f64,
-}
-
-#[derive(Clone)]
-pub struct AlignSpectraDialogState {
-    pub lo: f64,
-    pub hi: f64,
-    pub custom_target: bool,
-    pub target_ppm: f64,
-    /// Preview cache: peak detection over every candidate is too heavy to rerun
-    /// on each repaint, so the plan persists until inputs or the doc change.
-    pub plan: Option<super::AlignPlan>,
-    pub history_mark: (usize, usize),
-}
-
-pub enum ProcessingTemplateDialogState {
-    SaveAs {
-        dataset: usize,
-        name: String,
-    },
-    Browse {
-        dataset: usize,
-        entries: Vec<TemplateBrowserEntry>,
-        confirm_delete: Option<usize>,
-    },
 }
 
 /// Cached model-editor validation: the parsed definition plus its
@@ -438,6 +359,10 @@ pub struct UiState {
     /// dataset is stored alongside it; without it, expanding a row on one
     /// dataset would light up the same-numbered row on every other one.
     pub proc_expanded_step: Option<(DatasetId, StepId)>,
+    /// The armed one-shot request to pick a Reference step's source position on
+    /// the plot. Armed by the step editor's pick button; disarmed by the pick
+    /// click, Escape, or going stale (see `PlotxApp::sync_reference_pick`).
+    pub reference_pick: Option<ReferencePick>,
     /// Latched result of the last phase-editing sync: `true` while the canvas is
     /// held in on-plot phase mode because a Phase step's editor is open. Edge-
     /// detected so a manual tool switch mid-phasing isn't fought each frame.
@@ -600,6 +525,7 @@ impl Default for UiState {
             slice: None,
             slice_kind: plotx_processing::SliceKind::Row,
             proc_expanded_step: None,
+            reference_pick: None,
             phase_edit_active: false,
             proc_paused: false,
             proc_pending: None,

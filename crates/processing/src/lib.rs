@@ -629,6 +629,26 @@ impl AxisPipeline {
             .sum()
     }
 
+    /// Net chemical-shift translation applied at or after `step` by enabled
+    /// reference steps — the calibration separating the coordinates entering
+    /// `step` from the finished axis. A position picked on the displayed
+    /// spectrum converts into `step`'s own `at_ppm` by subtracting this value.
+    /// `step` counts only while enabled, matching how its current offset does
+    /// or does not shape the display. Kept beside
+    /// [`Self::chemical_shift_reference_offset_ppm`] so reference-step
+    /// semantics stay in one place.
+    pub fn chemical_shift_offset_from_step_ppm(&self, step: StepId) -> f64 {
+        self.steps
+            .iter()
+            .skip_while(|s| s.id != step)
+            .filter(|s| s.enabled)
+            .filter_map(|s| match s.kind {
+                StepKind::Reference(reference) => Some(reference.target_ppm - reference.at_ppm),
+                _ => None,
+            })
+            .sum()
+    }
+
     /// The zero-fill target for this axis: the last enabled `ZeroFill` step, or
     /// `None` when the axis carries none.
     pub fn zero_fill(&self) -> ZeroFill {

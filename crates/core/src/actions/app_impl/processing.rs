@@ -301,6 +301,58 @@ impl PlotxApp {
         }
     }
 
+    /// Arm or disarm the one-shot pick of a Reference step's source position
+    /// on the plot. Arming replaces any previously armed pick.
+    pub fn toggle_reference_pick(&mut self, dataset: DatasetId, step: plotx_processing::StepId) {
+        let pick = crate::state::ReferencePick { dataset, step };
+        if self.session.ui.reference_pick.take() == Some(pick) {
+            self.session.status = "Reference pick cancelled.".to_owned();
+            return;
+        }
+        self.session.ui.reference_pick = Some(pick);
+        self.session.status =
+            "Click the spectrum to pick the reference source position — Shift skips the peak snap, Esc cancels."
+                .to_owned();
+    }
+
+    /// The armed Reference pick resolved against the document, or `None` when
+    /// nothing valid is armed. A pick is valid only while the step editor that
+    /// armed it is still expanded on the active dataset and the step is still
+    /// a Reference step — the same lifetime the on-plot phase mode uses — so a
+    /// collapsed card cannot leave a live click trap on the plot.
+    pub fn resolve_reference_pick(&self) -> Option<crate::state::ResolvedReferencePick> {
+        let pick = self.session.ui.reference_pick?;
+        if self.session.ui.proc_expanded_step != Some((pick.dataset, pick.step)) {
+            return None;
+        }
+        let dataset_index = self.active_dataset()?;
+        let dataset = self.doc.datasets.get(dataset_index)?;
+        if dataset.resource_id() != pick.dataset {
+            return None;
+        }
+        let axis = dataset.phase_axes().iter().copied().find(|&axis| {
+            dataset.axis_pipeline(axis).is_some_and(|pipe| {
+                pipe.steps.iter().any(|step| {
+                    step.id == pick.step
+                        && matches!(step.kind, plotx_processing::StepKind::Reference(_))
+                })
+            })
+        })?;
+        Some(crate::state::ResolvedReferencePick {
+            pick,
+            dataset_index,
+            axis,
+        })
+    }
+
+    /// Drop an armed Reference pick that went stale — its editor collapsed,
+    /// the active dataset changed, or the step is gone.
+    pub fn sync_reference_pick(&mut self) {
+        if self.session.ui.reference_pick.is_some() && self.resolve_reference_pick().is_none() {
+            self.session.ui.reference_pick = None;
+        }
+    }
+
     /// Switch the first enabled Phase step on `axis` to manual, seeding it from the
     /// phase the auto method currently yields so the display does not jump. Used by
     /// the on-plot phase grab and the panel's Manual/Auto switch.
