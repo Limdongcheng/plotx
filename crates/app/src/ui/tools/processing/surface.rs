@@ -482,16 +482,13 @@ fn step_row(
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             crate::ui::properties::panel::processing_step_section(app, &target, ui);
-            let response = ui
-                .selectable_label(
-                    expanded,
-                    format!(
-                        "{}  {}",
-                        editors::kind_icon(&step.kind),
-                        editors::kind_label(&step.kind)
-                    ),
-                )
-                .on_hover_text(editors::kind_summary(&step.kind));
+            let response = crate::ui::affordance::selectable_row(
+                ui,
+                expanded,
+                editors::kind_icon(&step.kind),
+                editors::kind_label(&step.kind),
+            )
+            .on_hover_text(editors::kind_summary(&step.kind));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.menu_button(icon::DOTS_THREE, |ui| {
                     row_menu(
