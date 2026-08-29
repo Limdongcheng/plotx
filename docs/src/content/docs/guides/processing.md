@@ -29,8 +29,10 @@ screen is immediately usable, and a session touches at most three things:
 2. **Baseline** — baseline correction is off by default; enable the step when
    the baseline rolls or offsets.
 3. **Reference** — add a Reference step to pin a known peak to its
-   chemical-shift position. Peak marks are calibrated with the spectrum:
-   editing the Reference step moves existing marks along with the axis.
+   chemical-shift position, typing the source position or picking it directly
+   on the spectrum. Peak marks are calibrated with the spectrum: editing the
+   Reference step moves existing marks along with the axis. See
+   [Reference](#reference).
 
 2D datasets get a cosine-bell apodization enabled by default. A true 2D
 acquisition shows two pipelines, **F2 (direct)** then **F1 (indirect)**, in the
@@ -192,6 +194,24 @@ phase angles in radians, the pivot as a fraction.
 
 Baseline correction is off by default. Enable the step when your spectrum
 needs it.
+
+## Reference
+
+A Reference step shifts the whole chemical-shift axis so the point currently at
+**Source** reads **Target**: pin your standard (TMS, DSS, a solvent line) to
+its known position. Add it from **Add step → Frequency domain → Reference**.
+
+You can type the source position, or pick it on the spectrum: open the step and
+click **Pick position on spectrum**. Hovering the plot previews the position —
+the pick snaps to the nearest peak apex within a small window around the
+cursor, so zooming in first lets you land on a weak line precisely. Hold
+<kbd>Shift</kbd> to skip the snap and read the exact cursor position instead.
+Click to fill **Source**, then type the shift that peak should have into
+**Target**. <kbd>Esc</kbd>, collapsing the step, or switching datasets cancels
+an unused pick.
+
+Peak marks are calibrated with the spectrum, so editing a Reference step moves
+existing marks along with the axis.
 
 ## Reusing a pipeline
 

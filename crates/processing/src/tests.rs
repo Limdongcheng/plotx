@@ -490,6 +490,40 @@ fn pipeline_reference_offset_matches_all_enabled_reference_steps() {
     assert!((pipeline.chemical_shift_reference_offset_ppm() - 0.15).abs() < 1e-12);
 }
 
+/// The from-step reduction is the calibration between a step's input axis and
+/// the finished axis: it must count the step itself only while enabled, count
+/// later enabled reference steps, and ignore earlier ones.
+#[test]
+fn pipeline_offset_from_step_counts_that_step_and_later_enabled_ones() {
+    let first = step(StepKind::Reference(ReferenceParams {
+        at_ppm: 1.0,
+        target_ppm: 1.2,
+    }));
+    let mut disabled = step(StepKind::Reference(ReferenceParams {
+        at_ppm: 4.0,
+        target_ppm: 20.0,
+    }));
+    disabled.enabled = false;
+    let last = step(StepKind::Reference(ReferenceParams {
+        at_ppm: 3.0,
+        target_ppm: 2.95,
+    }));
+    let (first_id, disabled_id, last_id) = (first.id, disabled.id, last.id);
+    let pipeline = AxisPipeline {
+        steps: vec![step(StepKind::Fft), first, disabled, last],
+    };
+
+    assert!((pipeline.chemical_shift_offset_from_step_ppm(first_id) - 0.15).abs() < 1e-12);
+    // A disabled step contributes nothing of its own, only what follows it.
+    assert!((pipeline.chemical_shift_offset_from_step_ppm(disabled_id) - -0.05).abs() < 1e-12);
+    assert!((pipeline.chemical_shift_offset_from_step_ppm(last_id) - -0.05).abs() < 1e-12);
+    // An id the pipeline does not hold calibrates by zero.
+    assert_eq!(
+        pipeline.chemical_shift_offset_from_step_ppm(StepId::new(u64::MAX)),
+        0.0
+    );
+}
+
 #[test]
 fn public_process_returns_a_time_output_instead_of_panicking() {
     let data = fid(2.0, 0.0);

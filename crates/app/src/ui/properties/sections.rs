@@ -352,7 +352,35 @@ pub(crate) fn baseline_section(app: &mut PlotxApp, target: &TargetRef, ui: &mut 
 }
 
 pub(crate) fn reference_section(app: &mut PlotxApp, target: &TargetRef, ui: &mut Ui) -> bool {
-    processing_parameter_section(app, REFERENCE_SECTION, "Reference", target, ui)
+    let rendered = processing_parameter_section(app, REFERENCE_SECTION, "Reference", target, ui);
+    if rendered {
+        reference_pick_row(app, target, ui);
+    }
+    rendered
+}
+
+/// The click-to-enter row that arms the one-shot on-plot pick of the source
+/// position: click the peak on the spectrum instead of typing its ppm.
+fn reference_pick_row(app: &mut PlotxApp, target: &TargetRef, ui: &mut Ui) {
+    use plotx_core::automation::ComponentRef;
+    let Some(ComponentRef::ProcessingStep(step)) = target.component else {
+        return;
+    };
+    let Ok(dataset) = plotx_core::state::DatasetId::try_from(&target.resource) else {
+        return;
+    };
+    let armed =
+        app.session.ui.reference_pick == Some(plotx_core::state::ReferencePick { dataset, step });
+    let label = if armed {
+        "Picking… click the spectrum (Esc cancels)"
+    } else {
+        "Pick position on spectrum"
+    };
+    if crate::ui::affordance::selectable_row(ui, armed, egui_phosphor::regular::CROSSHAIR, label)
+        .clicked()
+    {
+        app.toggle_reference_pick(dataset, step);
+    }
 }
 
 pub(crate) fn smooth_section(app: &mut PlotxApp, target: &TargetRef, ui: &mut Ui) -> bool {
