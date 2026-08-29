@@ -431,7 +431,12 @@ fn transient_state_never_changes_ribbon_group_visibility() {
         .active_plot_object_id()
         .expect("NMR plot object");
     let range = app.analysis_range_for(0).expect("visible NMR range");
-    app.add_manual_peak(0, (range.min + range.max) / 2.0, None);
+    app.add_manual_peak(
+        0,
+        (range.min + range.max) / 2.0,
+        None,
+        plotx_core::state::ManualPeakSnap::NearestSample,
+    );
     app.session.ui.selection = Selection::single(object);
     let expected = ribbon_groups(&app);
 
