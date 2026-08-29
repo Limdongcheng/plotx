@@ -57,3 +57,100 @@ fn apex_snap_routes_through_pick() {
         (10.0, 5.0)
     );
 }
+
+/// A small frequency-domain spectrum with one clear line, loaded as a dataset.
+fn frequency_app() -> crate::state::PlotxApp {
+    let mut points = vec![num_complex::Complex64::new(0.0, 0.0); 64];
+    points[32] = num_complex::Complex64::new(100.0, 0.0);
+    points[31] = num_complex::Complex64::new(40.0, 0.0);
+    points[33] = num_complex::Complex64::new(40.0, 0.0);
+    let data = plotx_io::NmrData {
+        points,
+        domain: plotx_io::Domain::Frequency,
+        spectral_width_hz: 640.0,
+        observe_freq_mhz: 100.0,
+        carrier_ppm: 5.0,
+        nucleus: "1H".into(),
+        source: "test".into(),
+        group_delay: 0.0,
+    };
+    let mut app = crate::state::PlotxApp::new();
+    app.doc.datasets.push(crate::state::Dataset::Nmr(Box::new(
+        crate::state::NmrDataset::load(data),
+    )));
+    app
+}
+
+fn apply_reference(app: &mut crate::state::PlotxApp, at_ppm: f64, target_ppm: f64) {
+    let nmr = app.doc.datasets[0].as_nmr_mut().expect("NMR dataset");
+    let id = plotx_processing::StepId::new(nmr.next_step_id);
+    nmr.next_step_id += 1;
+    nmr.pipeline
+        .steps
+        .push(plotx_processing::ProcessingStep::new(
+            id,
+            plotx_processing::StepKind::Reference(plotx_processing::ReferenceParams {
+                at_ppm,
+                target_ppm,
+            }),
+            plotx_processing::StepSource::User,
+        ));
+    let nmr = app.doc.datasets[0].as_nmr_mut().expect("NMR dataset");
+    nmr.processed = plotx_processing::reapply_output(&nmr.base, &nmr.pipeline);
+}
+
+fn resolved_marks(app: &crate::state::PlotxApp) -> Vec<ResolvedPeak> {
+    let dataset = &app.doc.datasets[0];
+    dataset
+        .peaks()
+        .expect("peak set")
+        .resolve(dataset.peak_reference_offset_ppm())
+}
+
+/// The reported defect: mark a peak, then edit the Reference step — the mark
+/// must follow the recalibrated axis instead of pinning the old coordinates.
+#[test]
+fn marks_follow_a_later_reference_edit() {
+    let mut app = frequency_app();
+    let apex_x = app.doc.datasets[0]
+        .displayed_trace(None)
+        .expect("1D trace")
+        .xs[32];
+    app.add_manual_peak(0, apex_x, None, ManualPeakSnap::NearestSample);
+    let before = resolved_marks(&app);
+    assert_eq!(before.len(), 1);
+    assert!((before[0].x - apex_x).abs() < 1e-12);
+
+    apply_reference(&mut app, apex_x, apex_x + 0.5);
+
+    let after = resolved_marks(&app);
+    assert!((after[0].x - (apex_x + 0.5)).abs() < 1e-12);
+    // The mark tracks the shifted trace: the same array position now reads
+    // the mark's resolved x.
+    let shifted = app.doc.datasets[0]
+        .displayed_trace(None)
+        .expect("1D trace")
+        .xs[32];
+    assert!((after[0].x - shifted).abs() < 1e-12);
+    // The default label reads the calibrated position.
+    assert_eq!(after[0].label, format!("{:.2}", after[0].x));
+}
+
+/// Picks made on an already-referenced spectrum resolve back to the clicked
+/// finished coordinate (the stored value is uncalibrated).
+#[test]
+fn picks_on_a_referenced_spectrum_round_trip() {
+    let mut app = frequency_app();
+    apply_reference(&mut app, 0.0, 0.75);
+    let apex_x = app.doc.datasets[0]
+        .displayed_trace(None)
+        .expect("1D trace")
+        .xs[32];
+
+    app.add_manual_peak(0, apex_x, None, ManualPeakSnap::NearestSample);
+
+    let resolved = resolved_marks(&app);
+    assert!((resolved[0].x - apex_x).abs() < 1e-12);
+    let stored = &app.doc.datasets[0].peaks().expect("peak set").marks[0];
+    assert!((stored.x - (apex_x - 0.75)).abs() < 1e-12);
+}

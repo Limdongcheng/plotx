@@ -231,12 +231,13 @@ impl PlotxApp {
             return;
         };
         let (px, py) = trace.pick(x, snap);
+        let offset = self.doc.datasets[dataset].peak_reference_offset_ppm();
         self.edit_peaks(dataset, |peaks| {
             peaks.column = column_id;
             let id = peaks.next_id();
             peaks.marks.push(PeakMark {
                 id,
-                x: px,
+                x: px - offset,
                 y: py,
                 origin: PeakOrigin::Manual,
                 label: None,
@@ -269,10 +270,12 @@ impl PlotxApp {
             return;
         }
         let tol = trace.tol();
+        let offset = self.doc.datasets[dataset].peak_reference_offset_ppm();
         let mut added = 0;
         self.edit_peaks(dataset, |peaks| {
             peaks.column = column_id;
             for (x, y) in found {
+                let x = x - offset;
                 if peaks.marks.iter().any(|m| (m.x - x).abs() <= tol) {
                     continue;
                 }
@@ -315,10 +318,11 @@ impl PlotxApp {
         else {
             return;
         };
+        let offset = self.doc.datasets[dataset].peak_reference_offset_ppm();
         self.edit_peaks(dataset, |peaks| {
             peaks.column = column_id;
             peaks.detector.threshold = threshold;
-            peaks.redetect(&trace);
+            peaks.redetect(&trace, offset);
         });
         let count = self
             .doc
@@ -345,10 +349,11 @@ impl PlotxApp {
         else {
             return;
         };
+        let offset = self.doc.datasets[dataset].peak_reference_offset_ppm();
         self.edit_peaks(dataset, |peaks| {
             peaks.column = column_id;
             peaks.detector.max_count = max_count;
-            peaks.redetect(&trace);
+            peaks.redetect(&trace, offset);
         });
     }
 

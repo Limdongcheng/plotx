@@ -75,7 +75,7 @@ impl PlotxApp {
 
         let mut positions: Vec<f64> = self.doc.datasets[dataset]
             .peaks()
-            .map(|p| p.resolve())
+            .map(|p| p.resolve(self.doc.datasets[dataset].peak_reference_offset_ppm()))
             .unwrap_or_default()
             .iter()
             .map(|p| p.x)

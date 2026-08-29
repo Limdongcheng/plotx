@@ -29,7 +29,8 @@ screen is immediately usable, and a session touches at most three things:
 2. **Baseline** — baseline correction is off by default; enable the step when
    the baseline rolls or offsets.
 3. **Reference** — add a Reference step to pin a known peak to its
-   chemical-shift position.
+   chemical-shift position. Peak marks are calibrated with the spectrum:
+   editing the Reference step moves existing marks along with the axis.
 
 2D datasets get a cosine-bell apodization enabled by default. A true 2D
 acquisition shows two pipelines, **F2 (direct)** then **F1 (indirect)**, in the

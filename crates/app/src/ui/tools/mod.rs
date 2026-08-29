@@ -284,7 +284,7 @@ fn peaks_group(app: &mut PlotxApp, di: usize, ui: &mut Ui) -> bool {
         }
     });
 
-    let resolved = peaks.resolve();
+    let resolved = peaks.resolve(app.doc.datasets[di].peak_reference_offset_ppm());
     ui.horizontal(|ui| {
         ui.label(format!("Peaks: {}", resolved.len()));
         if ui
