@@ -111,6 +111,13 @@ static BINDINGS: &[CommandBinding] = &[
     bound(commands::CommandId::Group, cmd(egui::Key::G)),
     bound(commands::CommandId::Ungroup, cmd_shift(egui::Key::G)),
     bound(commands::CommandId::Preferences, cmd(egui::Key::Comma)),
+    // The VS Code sidebar chords. The layout buttons in the Ribbon task row
+    // are the discoverable surface; these are the fast path.
+    bound(commands::CommandId::TogglePrimarySidebar, cmd(egui::Key::B)),
+    bound(
+        commands::CommandId::ToggleSecondarySidebar,
+        cmd_shift(egui::Key::B),
+    ),
     CommandBinding {
         id: commands::CommandId::UiScaleUp,
         primary: cmd(egui::Key::Plus),

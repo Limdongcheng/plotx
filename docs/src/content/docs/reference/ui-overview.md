@@ -35,6 +35,12 @@ introduces the same regions in walkthrough form.
 - **Status bar** — the bottom strip, showing hints, progress, and selection
   details.
 
+Both Side Bars can be shown or hidden at any time: click the pair of layout
+buttons at the right end of the Ribbon's task row, press
+<kbd>Ctrl</kbd>+<kbd>B</kbd> (left) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>
+(right; <kbd>Cmd</kbd> on macOS), or drag a Side Bar's inner edge past its
+minimum width to hide it.
+
 ## Recurring elements
 
 - **Figure panel (Panel)** — a labelled section of a figure that can contain

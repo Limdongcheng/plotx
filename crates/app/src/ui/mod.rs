@@ -44,7 +44,9 @@ mod workspace_geometry;
 
 use data_sheet::*;
 use diagnostics::*;
-use egui::{Color32, Id, InnerResponse, Mesh, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Color32, Id, InnerResponse, Mesh, Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder, Vec2,
+};
 use export_dialog::*;
 use plotx_core::actions::Action;
 use plotx_core::export::{ExportPageScope, ExportScopeKind, ExportSettings};
@@ -162,12 +164,21 @@ pub fn render(
             ),
         ))
         .show_inside(ui, |ui| {
-            canvas::render_central(app, ui);
-            tools::render_processing_task(app, ui);
-            tools::render_region_task(app, ui);
-            tools::render_curve_fit_task(app, ui);
-            tools::render_statistics_task(app, ui);
-            tools::render_craft_task(app, ui);
+            // Same stable id scope as the sidebars: the central panel's ids
+            // must not shift when a sidebar toggles (see `show_sidebar`).
+            ui.scope_builder(
+                UiBuilder::new()
+                    .id_salt(Id::new("central_workspace_stable_scope"))
+                    .global_scope(true),
+                |ui| {
+                    canvas::render_central(app, ui);
+                    tools::render_processing_task(app, ui);
+                    tools::render_region_task(app, ui);
+                    tools::render_curve_fit_task(app, ui);
+                    tools::render_statistics_task(app, ui);
+                    tools::render_craft_task(app, ui);
+                },
+            );
         });
 
     canvas_settings_window(app, &ctx);

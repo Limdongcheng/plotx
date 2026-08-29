@@ -152,7 +152,94 @@ fn controls_width(app: &PlotxApp, ui: &Ui, density: RibbonDensity, compact: bool
         .filter(|text| !text.is_empty())
         .map(|text| text_width(ui, text, TextStyle::Button))
         .sum::<f32>()
-        + 2.0 * spacing
+        // The two sidebar layout toggles, the separator before them, and
+        // their share of the item spacing.
+        + 2.0 * SIDEBAR_TOGGLE_WIDTH
+        + 6.0
+        + 5.0 * spacing
+}
+
+/// Fixed width of one sidebar layout toggle; shared with the width estimate
+/// in `controls_width` so compaction accounts for the pair.
+pub(super) const SIDEBAR_TOGGLE_WIDTH: f32 = 30.0;
+
+/// Always-visible sidebar toggle for the task row. The glyph mirrors the
+/// window layout: the band marks which side the command controls and is
+/// filled while that sidebar is visible, so the pair doubles as a live
+/// layout indicator.
+pub(super) fn sidebar_toggle_button(
+    app: &mut PlotxApp,
+    clipboard: &mut super::clipboard_table::ClipboardTablePaste,
+    ui: &mut Ui,
+    id: super::commands::CommandId,
+) {
+    use super::commands;
+
+    let command = commands::describe(app, id);
+    let sidebar_visible = command.checked == Some(true);
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(SIDEBAR_TOGGLE_WIDTH, ui.spacing().interact_size.y),
+        egui::Sense::click(),
+    );
+    if response.clicked() {
+        commands::execute(id, app, clipboard, ui.ctx());
+    }
+    let visuals = ui.style().interact(&response);
+    if response.hovered() || response.is_pointer_button_down_on() {
+        // Match the neighbouring frameless chrome buttons: a quiet fill that
+        // appears only under the pointer.
+        ui.painter()
+            .rect_filled(rect, visuals.corner_radius, visuals.weak_bg_fill);
+    }
+    let color = if sidebar_visible {
+        visuals.text_color()
+    } else {
+        ui.visuals().weak_text_color()
+    };
+    paint_sidebar_glyph(
+        ui,
+        rect,
+        id == commands::CommandId::TogglePrimarySidebar,
+        sidebar_visible,
+        color,
+    );
+    let tip = match &command.shortcut {
+        Some(shortcut) => format!("{} ({shortcut})", command.label),
+        None => command.label.clone(),
+    };
+    response.on_hover_text(tip);
+}
+
+fn paint_sidebar_glyph(ui: &Ui, rect: egui::Rect, left: bool, filled: bool, color: egui::Color32) {
+    let painter = ui.painter();
+    let outer = egui::Rect::from_center_size(rect.center(), egui::vec2(16.0, 12.0));
+    painter.rect_stroke(
+        outer,
+        3.0,
+        egui::Stroke::new(1.2_f32, color),
+        egui::StrokeKind::Inside,
+    );
+    let band = if left {
+        egui::Rect::from_min_max(
+            outer.min + egui::vec2(2.0, 2.0),
+            egui::pos2(outer.min.x + 7.0, outer.max.y - 2.0),
+        )
+    } else {
+        egui::Rect::from_min_max(
+            egui::pos2(outer.max.x - 7.0, outer.min.y + 2.0),
+            outer.max - egui::vec2(2.0, 2.0),
+        )
+    };
+    if filled {
+        painter.rect_filled(band, 1.5, color);
+    } else {
+        painter.rect_stroke(
+            band,
+            1.5,
+            egui::Stroke::new(1.0_f32, color),
+            egui::StrokeKind::Inside,
+        );
+    }
 }
 
 fn text_width(ui: &Ui, text: impl Into<WidgetText>, fallback: TextStyle) -> f32 {
