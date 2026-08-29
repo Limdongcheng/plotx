@@ -13,7 +13,7 @@ use identity::command_identity;
 pub(crate) use identity::recent_entry_label;
 mod helpers;
 pub(super) use helpers::chart_plot_target;
-use helpers::{requires, selected_paths_unlocked, tool_commands};
+use helpers::{has_active_plot, requires, selected_paths_unlocked, tool_commands};
 mod ribbon;
 use ribbon::ribbon_placement;
 pub use ribbon::{Applicability, RibbonPlacement};
@@ -68,6 +68,8 @@ pub enum CommandId {
     ToggleSecondarySidebar,
     ZoomToFit,
     ZoomToSelection,
+    FitPlotY,
+    FitPlotXY,
     UiScaleUp,
     UiScaleDown,
     UiScaleReset,
@@ -199,6 +201,8 @@ pub fn catalog(app: &PlotxApp) -> Vec<CommandDescriptor> {
         CommandId::ToggleSecondarySidebar,
         CommandId::ZoomToFit,
         CommandId::ZoomToSelection,
+        CommandId::FitPlotY,
+        CommandId::FitPlotXY,
         CommandId::UiScaleUp,
         CommandId::UiScaleDown,
         CommandId::UiScaleReset,
@@ -497,6 +501,10 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
             "Create a panel before renumbering panel labels.",
         ),
         CommandId::ZoomToFit => requires(has_canvas, "Open a canvas before zooming to fit."),
+        CommandId::FitPlotY | CommandId::FitPlotXY => requires(
+            has_active_plot(app),
+            "Plot a dataset on the canvas before fitting its data view.",
+        ),
         CommandId::ZoomToSelection => {
             requires(has_canvas, "Open a canvas before zooming to the selection.")
         }

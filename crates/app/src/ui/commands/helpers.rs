@@ -32,6 +32,13 @@ impl CommandId {
     }
 }
 
+pub(super) fn has_active_plot(app: &PlotxApp) -> bool {
+    app.session
+        .active_canvas
+        .and_then(|ci| app.doc.canvases.get(ci))
+        .is_some_and(|canvas| canvas.active_plot_object_id().is_some())
+}
+
 pub(super) fn requires(ok: bool, reason: &'static str) -> Result<(), &'static str> {
     if ok { Ok(()) } else { Err(reason) }
 }

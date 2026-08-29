@@ -141,9 +141,27 @@ static BINDINGS: &[CommandBinding] = &[
         dispatch: false,
         menu_accelerator: true,
     },
+    // Plain `F` is context-split by `handle_plot_fit_shortcut`: over a plot's
+    // data area it runs FitPlotXY, elsewhere ZoomToSelection. Both bindings
+    // stay in the table so labels derive normally, but neither dispatches
+    // through the chord table.
     CommandBinding {
         id: commands::CommandId::ZoomToSelection,
         primary: plain(egui::Key::F),
+        aliases: &[],
+        dispatch: false,
+        menu_accelerator: false,
+    },
+    CommandBinding {
+        id: commands::CommandId::FitPlotXY,
+        primary: plain(egui::Key::F),
+        aliases: &[],
+        dispatch: false,
+        menu_accelerator: false,
+    },
+    CommandBinding {
+        id: commands::CommandId::FitPlotY,
+        primary: plain(egui::Key::H),
         aliases: &[],
         dispatch: true,
         menu_accelerator: false,
@@ -249,6 +267,30 @@ pub(super) fn handle_palette_shortcut(
     if pressed {
         commands::execute(commands::CommandId::CommandPalette, app, clipboard, ctx);
     }
+}
+
+/// Sole owner of the plain `F` chord, which is context-split: with the pointer
+/// on a plot's data area it fits that plot's data viewport on both axes, and
+/// everywhere else it keeps its original board meaning, Zoom to Selection. The
+/// split lives in this focused handler instead of the dispatch table so both
+/// commands keep their own identity, gating and palette entries.
+pub(super) fn handle_plot_fit_shortcut(
+    app: &mut PlotxApp,
+    clipboard: &mut clipboard_table::ClipboardTablePaste,
+    ctx: &egui::Context,
+) {
+    if ctx.egui_wants_keyboard_input() {
+        return;
+    }
+    if !ctx.input(|i| chord_pressed(i, plain(egui::Key::F))) {
+        return;
+    }
+    let id = if canvas::pointer_in_plot_data(app, ctx) {
+        commands::CommandId::FitPlotXY
+    } else {
+        commands::CommandId::ZoomToSelection
+    };
+    commands::execute(id, app, clipboard, ctx);
 }
 
 /// Route global bindings through the same command dispatcher used by menus,
@@ -602,121 +644,5 @@ pub(super) fn handle_delete_shortcut(app: &mut PlotxApp, ctx: &egui::Context) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Two dispatchable bindings must never share an effective chord. The
-    /// matcher ignores Shift for plain keys, so those normalize shift away.
-    #[test]
-    fn dispatchable_chords_are_unambiguous() {
-        let mut seen = std::collections::HashSet::new();
-        for binding in BINDINGS.iter().filter(|binding| binding.dispatch) {
-            for chord in std::iter::once(binding.primary).chain(binding.aliases.iter().copied()) {
-                assert!(
-                    seen.insert((chord.command, chord.command && chord.shift, chord.key)),
-                    "chord {chord:?} bound twice"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn labels_derive_from_the_binding_table() {
-        let label = shortcut_label(commands::CommandId::SaveProject).unwrap();
-        assert!(label.ends_with("+S"));
-        assert!(
-            shortcut_label(commands::CommandId::PasteImage)
-                .is_some_and(|label| label.ends_with("+V"))
-        );
-        assert_eq!(
-            shortcut_label(commands::CommandId::Tool(Tool::Select)).as_deref(),
-            Some("V")
-        );
-        assert_eq!(
-            shortcut_label(commands::CommandId::CycleCursor).as_deref(),
-            Some("C")
-        );
-        assert!(shortcut_label(commands::CommandId::Tool(Tool::Symmetry)).is_none());
-        assert!(shortcut_label(commands::CommandId::About).is_none());
-    }
-
-    fn paste_key_event() -> egui::Event {
-        egui::Event::Key {
-            key: egui::Key::V,
-            physical_key: Some(egui::Key::V),
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::CTRL,
-        }
-    }
-
-    #[test]
-    fn restored_ctrl_v_and_platform_paste_events_route_to_paste_image() {
-        for event in [
-            paste_key_event(),
-            egui::Event::Paste("clipboard".to_owned()),
-        ] {
-            let ctx = egui::Context::default();
-            let input = egui::RawInput {
-                events: vec![event],
-                modifiers: egui::Modifiers::CTRL,
-                ..Default::default()
-            };
-            let mut command = None;
-            let _ = ctx.run_ui(input, |ui| command = shortcut_command(ui.ctx()));
-            assert_eq!(command, Some(commands::CommandId::PasteImage));
-        }
-    }
-
-    #[test]
-    fn focused_text_edit_keeps_ctrl_v_for_text_paste() {
-        let ctx = egui::Context::default();
-        let mut text = String::new();
-        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
-            ui.add(egui::TextEdit::singleline(&mut text))
-                .request_focus();
-        });
-        let input = egui::RawInput {
-            events: vec![egui::Event::Paste("text".to_owned())],
-            modifiers: egui::Modifiers::CTRL,
-            ..Default::default()
-        };
-        let mut command = None;
-        let _ = ctx.run_ui(input, |ui| {
-            command = shortcut_command(ui.ctx());
-            ui.add(egui::TextEdit::singleline(&mut text));
-        });
-        assert_eq!(command, None);
-        assert_eq!(text, "text");
-    }
-
-    #[test]
-    fn escape_exits_an_active_tool_after_other_fallbacks() {
-        let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        app.set_tool(Tool::Integrate);
-
-        handle_escape(&mut app, 0.0);
-
-        assert_eq!(app.session.tool, Tool::BrowseZoom);
-        assert_eq!(app.session.status, "Exited tool mode.");
-    }
-
-    #[test]
-    fn escape_finishes_a_pending_wheel_property_gesture() {
-        let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        app.session.ui.wheel_property = Some(plotx_core::actions::PendingWheelPropertyEdit {
-            canvas: 0,
-            object: plotx_core::state::ObjectId::new(1),
-            property: plotx_core::properties::contour::BASE_MAGNITUDE,
-            targets: Vec::new(),
-            accumulator: 0.0,
-            last_input_time: 0.0,
-            gesture_started: false,
-        });
-
-        handle_escape(&mut app, 1.0);
-
-        assert!(app.session.ui.wheel_property.is_none());
-        assert_eq!(app.session.status, "Cancelled interaction.");
-    }
-}
+#[path = "shortcuts_tests.rs"]
+mod tests;
