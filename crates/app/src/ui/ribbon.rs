@@ -2,24 +2,21 @@
 //! to PlotX's existing light egui chrome; the task/group hierarchy is the only
 //! idea borrowed from the supplied Office reference.
 
-use egui::text::LayoutJob;
+mod buttons;
+mod layout;
+
 use egui::{
-    Align, Align2, Button, Color32, FontId, Label, Layout, PointerButton, RichText, Sense,
-    TextFormat, TextWrapMode, Ui, UiBuilder, Vec2, vec2,
+    Align, Button, Label, Layout, PointerButton, RichText, Sense, TextWrapMode, Ui, UiBuilder,
+    Vec2, vec2,
 };
 use egui_phosphor::regular as icon;
-use plotx_core::actions::ZOrder;
-use plotx_core::export::ExportFormat;
-use plotx_core::state::{PlotxApp, Tool, ToolGroup, WorkflowTab};
+use plotx_core::state::{PlotxApp, ToolGroup, WorkflowTab};
 
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
+use buttons::{overflow_item, ribbon_button};
+use layout::{ROW_HEIGHT, TILE_HEIGHT};
 
-const AUTO_COLLAPSE_WIDTH: f32 = 760.0;
-/// One shared tile height (Full density) and row height (Compact) keeps every
-/// command in a group visually equal-sized.
-const TILE_HEIGHT: f32 = 46.0;
-const ROW_HEIGHT: f32 = 26.0;
 /// The native metric includes a little more bottom breathing room than the
 /// tab highlight needs visually; trim it so the highlight has equal margins.
 const MACOS_TITLE_ROW_BOTTOM_TRIM: f32 = 2.0;
@@ -43,9 +40,10 @@ pub(crate) fn render(
     // Measured before `task_row`, so a tab click adopts the new tab's density
     // one frame later — invisible in practice.
     let density = {
+        let measure = layout::text_measure(ui.ctx().clone());
         let catalog = commands::catalog(app);
-        let groups = groups_for_tab(&catalog, app.session.ui.ribbon_tab);
-        density(width, app.session.ui.ribbon_expanded, &groups)
+        let groups = layout::groups_for_tab(&catalog, app.session.ui.ribbon_tab);
+        layout::density(width, app.session.ui.ribbon_expanded, &groups, &measure)
     };
     task_row(app, clipboard, ui, density, chrome);
     if density != RibbonDensity::Collapsed {
@@ -275,28 +273,24 @@ fn command_row(
 ) {
     let tab = app.session.ui.ribbon_tab;
     let catalog = commands::catalog(app);
-    let groups = groups_for_tab(&catalog, tab);
+    let groups = layout::groups_for_tab(&catalog, tab);
     if density == RibbonDensity::Collapsed {
         return;
     }
-    let mut ranked: Vec<usize> = groups.iter().enumerate().map(|(index, _)| index).collect();
-    ranked.sort_by_key(|&index| groups[index].1);
-    let required = required_width(&groups, density);
+    let measure = layout::text_measure(ui.ctx().clone());
+    let widths: Vec<f32> = groups
+        .iter()
+        .map(|(title, _, entries)| layout::group_width(title, entries, density, &measure) + 8.0)
+        .collect();
+    let priorities: Vec<u8> = groups.iter().map(|(_, priority, _)| *priority).collect();
+    let required: f32 = widths.iter().sum();
     let available = ui.available_width();
     let budget = if required <= available {
         available
     } else {
-        (available - 86.0).max(0.0)
+        (available - more_button_width(ui, &measure)).max(0.0)
     };
-    let mut used = 0.0;
-    let mut shown = vec![false; groups.len()];
-    for index in ranked {
-        let width = group_width(groups[index].0, &groups[index].2, density) + 8.0;
-        if used + width <= budget {
-            shown[index] = true;
-            used += width;
-        }
-    }
+    let shown = layout::shown_groups(&priorities, &widths, budget);
     let (visible, hidden): (Vec<_>, Vec<_>) = groups
         .into_iter()
         .enumerate()
@@ -314,11 +308,11 @@ fn command_row(
             3.0
         };
         for (_, (group, _, commands)) in visible {
-            ribbon_group(app, clipboard, ui, group, commands, density);
+            ribbon_group(app, clipboard, ui, group, commands, density, &measure);
             ui.separator();
         }
         if !hidden.is_empty() {
-            ui.menu_button(format!("{} More", icon::DOTS_THREE), |ui| {
+            ui.menu_button(more_label(), |ui| {
                 for (_, (group, _, entries)) in hidden {
                     ui.label(crate::typography::headline(group));
                     for command in entries {
@@ -333,6 +327,17 @@ fn command_row(
     });
 }
 
+fn more_label() -> String {
+    format!("{} More", icon::DOTS_THREE)
+}
+
+/// Measured reservation for the More overflow button, so the budget tracks the
+/// live fonts instead of a fixed guess.
+fn more_button_width(ui: &Ui, measure: layout::Measure) -> f32 {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    measure(&more_label(), font) + ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x
+}
+
 fn ribbon_group(
     app: &mut PlotxApp,
     clipboard: &mut ClipboardTablePaste,
@@ -340,9 +345,10 @@ fn ribbon_group(
     title: &str,
     entries: Vec<&CommandDescriptor>,
     density: RibbonDensity,
+    measure: layout::Measure,
 ) {
-    let width = group_width(title, &entries, density);
-    let tile = tile_width(&entries);
+    let width = layout::group_width(title, &entries, density, measure);
+    let tile = layout::tile_width(&entries, measure);
     ui.allocate_ui_with_layout(
         Vec2::new(
             width,
@@ -361,7 +367,7 @@ fn ribbon_group(
                     2.0
                 };
                 for command in entries {
-                    ribbon_button(app, clipboard, ui, command, density, tile);
+                    ribbon_button(app, clipboard, ui, command, density, tile, measure);
                 }
             });
             ui.add_space(1.0);
@@ -371,317 +377,6 @@ fn ribbon_group(
             );
         },
     );
-}
-
-/// Width the whole tab needs at `density`: every group plus its separator.
-/// The same estimate drives the density choice and the overflow budget, so a
-/// tab shown Full is guaranteed to fit without a More menu.
-fn required_width(
-    groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
-    density: RibbonDensity,
-) -> f32 {
-    groups
-        .iter()
-        .map(|(title, _, entries)| group_width(title, entries, density) + 8.0)
-        .sum()
-}
-
-fn group_width(title: &str, entries: &[&CommandDescriptor], density: RibbonDensity) -> f32 {
-    let spacing = 4.0 * entries.len().saturating_sub(1) as f32;
-    let commands = if density == RibbonDensity::Full {
-        tile_width(entries) * entries.len() as f32 + spacing
-    } else {
-        entries
-            .iter()
-            .map(|command| button_width(command))
-            .sum::<f32>()
-            + spacing
-    };
-    commands.max(title.chars().count() as f32 * 5.8 + 8.0)
-}
-
-/// All tiles in a group share the width of the widest short label, so a group
-/// reads as one row of even targets instead of a ragged strip.
-fn tile_width(entries: &[&CommandDescriptor]) -> f32 {
-    entries
-        .iter()
-        .map(|command| short_label(command).chars().count() as f32 * 5.8 + 18.0)
-        .fold(58.0, f32::max)
-        .min(112.0)
-}
-
-fn button_width(command: &CommandDescriptor) -> f32 {
-    if command.icon.is_some() {
-        ROW_HEIGHT
-    } else {
-        (short_label(command).chars().count() as f32 * 6.2 + 16.0).clamp(40.0, 140.0)
-    }
-}
-
-/// Ribbon buttons carry short verb labels; the full command name and shortcut
-/// stay in the tooltip, menus and the command palette.
-fn short_label(command: &CommandDescriptor) -> String {
-    match command.id {
-        CommandId::NewCanvas(index) => match index {
-            0 => "Slides",
-            1 => "1 Column",
-            2 => "2 Columns",
-            3 => "Poster",
-            _ => "Canvas",
-        }
-        .to_owned(),
-        CommandId::ChartType => "Chart".to_owned(),
-        CommandId::ApplyTheme(id) => match id {
-            "publication" => "Paper",
-            "presentation_dark" => "Dark",
-            "vibrant" => "Vibrant",
-            _ => "Theme",
-        }
-        .to_owned(),
-        CommandId::CopyFigure => "Copy".to_owned(),
-        CommandId::Export(format) => match format {
-            ExportFormat::Png => "PNG",
-            ExportFormat::Svg => "SVG",
-            _ => format.label(),
-        }
-        .to_owned(),
-        CommandId::ImportTable => "Import Table".to_owned(),
-        CommandId::ImportImage => "Add Images".to_owned(),
-        CommandId::ImportImageFirstFrame => "First Frame".to_owned(),
-        CommandId::PasteTable => "Paste Table".to_owned(),
-        CommandId::NewTable => "New Table".to_owned(),
-        CommandId::StackData => "Stack Data".to_owned(),
-        CommandId::SaveProcessingTemplate => "Save Template".to_owned(),
-        CommandId::ApplyProcessingTemplate => "Apply Template".to_owned(),
-        CommandId::SpectrumArithmetic => "Arithmetic".to_owned(),
-        CommandId::AlignSpectra => "Align Spectra".to_owned(),
-        CommandId::TidyBoard => "Tidy Frames".to_owned(),
-        CommandId::ToggleSnap => "Snapping".to_owned(),
-        CommandId::TogglePrimarySidebar => "Left Bar".to_owned(),
-        CommandId::ToggleSecondarySidebar => "Right Bar".to_owned(),
-        CommandId::ArrangeGrid(rows, cols) => format!("Plots {rows} × {cols}"),
-        CommandId::ZOrder(mode) => match mode {
-            ZOrder::Front => "To Front",
-            ZOrder::Forward => "Forward",
-            ZOrder::Backward => "Backward",
-            ZOrder::Back => "To Back",
-        }
-        .to_owned(),
-        CommandId::Align(_) => command.label.trim_start_matches("Align ").to_owned(),
-        CommandId::Distribute(_) => command.label.trim_start_matches("Distribute ").to_owned(),
-        // A Ribbon tile shows the group's own short name; the full "… settings"
-        // wording stays in the tooltip, the menus and the palette.
-        CommandId::PropertyGroup(section) => super::properties::discovery::group(section)
-            .map(|group| group.label.get().to_owned())
-            .unwrap_or_else(|| "Settings".to_owned()),
-        CommandId::Tool(Tool::BrowseZoom) => "Zoom".to_owned(),
-        CommandId::Tool(_) => command.label.trim_start_matches("Tool: ").to_owned(),
-        _ => command.label.clone(),
-    }
-}
-
-fn ribbon_button(
-    app: &mut PlotxApp,
-    clipboard: &mut ClipboardTablePaste,
-    ui: &mut Ui,
-    command: &CommandDescriptor,
-    density: RibbonDensity,
-    tile: f32,
-) {
-    let label = short_label(command);
-    // Icons carry the accent colour; label text keeps the theme colour via the
-    // placeholder, which also inherits the correct disabled/selected colours.
-    let icon_color = if command.enabled && command.checked != Some(true) {
-        ui.visuals().hyperlink_color
-    } else {
-        Color32::PLACEHOLDER
-    };
-    let mut job = LayoutJob::default();
-    let response = if density == RibbonDensity::Full {
-        let icon_font = FontId::proportional(16.0);
-        let label_font = crate::typography::subheadline_font();
-        let selected = command.checked == Some(true);
-        // Keep the command name in the button for accessibility, but paint the
-        // two visible rows ourselves so both share the tile's exact centre.
-        // LayoutJob's per-row offsets otherwise make differently sized glyphs
-        // appear alternately left- and right-aligned.
-        let button = Button::selectable(
-            selected,
-            RichText::new(&label).size(1.0).color(Color32::TRANSPARENT),
-        )
-        .min_size(Vec2::new(tile, TILE_HEIGHT));
-        let response = ui.add_enabled(command.enabled, button);
-        let text_color = ui
-            .style()
-            .button_style(response.widget_state(), selected)
-            .text_style
-            .color;
-        let center = response.rect.center();
-        if let Some(icon) = command.icon {
-            ui.painter().text(
-                center - Vec2::new(0.0, 7.5),
-                Align2::CENTER_CENTER,
-                icon,
-                icon_font,
-                if command.enabled && !selected {
-                    icon_color
-                } else {
-                    text_color
-                },
-            );
-            ui.painter().text(
-                center + Vec2::new(0.0, 9.0),
-                Align2::CENTER_CENTER,
-                &label,
-                label_font,
-                text_color,
-            );
-        } else {
-            ui.painter().text(
-                center,
-                Align2::CENTER_CENTER,
-                &label,
-                label_font,
-                text_color,
-            );
-        }
-        response
-    } else {
-        if let Some(icon) = command.icon {
-            job.append(
-                icon,
-                0.0,
-                TextFormat {
-                    font_id: FontId::proportional(14.0),
-                    color: icon_color,
-                    ..Default::default()
-                },
-            );
-        } else {
-            job.append(
-                &label,
-                0.0,
-                TextFormat {
-                    font_id: crate::typography::callout_font(),
-                    color: Color32::PLACEHOLDER,
-                    ..Default::default()
-                },
-            );
-        }
-        let button = Button::selectable(command.checked == Some(true), job)
-            .min_size(Vec2::new(button_width(command), ROW_HEIGHT));
-        ui.add_enabled(command.enabled, button)
-    };
-    let tip = match &command.shortcut {
-        Some(shortcut) => format!("{} ({shortcut})", command.label),
-        None => command.label.clone(),
-    };
-    let clicked = response.clicked();
-    if command.enabled {
-        response.on_hover_text(tip);
-    } else {
-        let reason = command
-            .disabled_reason
-            .unwrap_or("Unavailable in the current context.");
-        response.on_disabled_hover_text(format!("{tip} · {reason}"));
-    }
-    if clicked {
-        commands::execute(command.id, app, clipboard, ui.ctx());
-    }
-}
-
-fn overflow_item(
-    app: &mut PlotxApp,
-    clipboard: &mut ClipboardTablePaste,
-    ui: &mut Ui,
-    id: CommandId,
-) {
-    let command = commands::describe(app, id);
-    let mut button = Button::new(&command.label).selected(command.checked == Some(true));
-    if let Some(shortcut) = &command.shortcut {
-        button = button.shortcut_text(shortcut);
-    }
-    let response = ui.add_enabled(command.enabled, button);
-    let clicked = response.clicked();
-    if !command.enabled
-        && let Some(reason) = command.disabled_reason
-    {
-        response.on_disabled_hover_text(reason);
-    }
-    if clicked {
-        commands::execute(id, app, clipboard, ui.ctx());
-        ui.close();
-    }
-}
-
-fn groups_for_tab(
-    catalog: &[CommandDescriptor],
-    tab: WorkflowTab,
-) -> Vec<(&'static str, u8, Vec<&CommandDescriptor>)> {
-    let mut groups: Vec<(&'static str, u8, Vec<&CommandDescriptor>)> = Vec::new();
-    for command in catalog {
-        let Some(placement) = command.ribbon.filter(|placement| placement.tab == tab) else {
-            continue;
-        };
-        if let Some((_, priority, entries)) = groups
-            .iter_mut()
-            .find(|(group, _, _)| *group == placement.group)
-        {
-            *priority = (*priority).min(placement.priority);
-            entries.push(command);
-        } else {
-            groups.push((placement.group, placement.priority, vec![command]));
-        }
-    }
-    groups.sort_by_key(|(group, _, _)| group_order(tab, group));
-    groups
-}
-
-fn group_order(tab: WorkflowTab, group: &str) -> u8 {
-    match (tab, group) {
-        (WorkflowTab::View, "Navigate")
-        | (WorkflowTab::Data, "Import")
-        | (WorkflowTab::Process, "Correct")
-        | (WorkflowTab::Analyze, "Range")
-        | (WorkflowTab::Figure, "Create")
-        | (WorkflowTab::Arrange, "Layout") => 0,
-        (WorkflowTab::Analyze, "Regions") => 1,
-        (WorkflowTab::View, "Display")
-        | (WorkflowTab::Data, "Build")
-        | (WorkflowTab::Process, "Transform")
-        | (WorkflowTab::Figure, "Chart")
-        | (WorkflowTab::Arrange, "Align") => 1,
-        (WorkflowTab::Figure, "Style") => 2,
-        (WorkflowTab::Figure, "Output") => 3,
-        (WorkflowTab::Analyze, "Peaks") => 2,
-        (WorkflowTab::Data, "Inspect")
-        | (WorkflowTab::Process, "Recipes")
-        | (WorkflowTab::Arrange, "Distribute") => 2,
-        (WorkflowTab::Analyze, "Peak Fit") | (WorkflowTab::Arrange, "Order") => 3,
-        (WorkflowTab::Analyze, "Curve Fit") => 4,
-        (WorkflowTab::Analyze, "Interpret") => 5,
-        (WorkflowTab::Arrange, "Guides") => 4,
-        (WorkflowTab::Arrange, "Annotate") => 5,
-        _ => u8::MAX,
-    }
-}
-
-/// The richest density whose content actually fits `width`: full icon-and-text
-/// tiles whenever the active tab's groups all fit, otherwise the compact icon
-/// row (whose own overflow moves whole groups into More). Below the absolute
-/// floor even icon rows crowd, so the command area collapses to menus.
-fn density(
-    width: f32,
-    expanded: bool,
-    groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
-) -> RibbonDensity {
-    if !expanded || width < AUTO_COLLAPSE_WIDTH {
-        RibbonDensity::Collapsed
-    } else if required_width(groups, RibbonDensity::Full) <= width {
-        RibbonDensity::Full
-    } else {
-        RibbonDensity::Compact
-    }
 }
 
 fn update_button(app: &mut PlotxApp, ui: &mut Ui, compact: bool) {
@@ -715,61 +410,5 @@ fn update_button(app: &mut PlotxApp, ui: &mut Ui, compact: bool) {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
         _ => {}
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn density_follows_the_active_tabs_measured_content() {
-        let app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        let catalog = commands::catalog(&app);
-        let groups = groups_for_tab(&catalog, WorkflowTab::View);
-        let full_need = required_width(&groups, RibbonDensity::Full);
-        assert!(
-            full_need > AUTO_COLLAPSE_WIDTH,
-            "test premise: the View tab's full-density content ({full_need}) must exceed the collapse floor"
-        );
-
-        // Full the moment the tab's content fits — no fixed window breakpoint.
-        assert_eq!(density(full_need + 1.0, true, &groups), RibbonDensity::Full);
-        assert_eq!(
-            density(full_need - 1.0, true, &groups),
-            RibbonDensity::Compact
-        );
-        assert_eq!(density(700.0, true, &groups), RibbonDensity::Collapsed);
-        assert_eq!(
-            density(full_need + 1.0, false, &groups),
-            RibbonDensity::Collapsed
-        );
-    }
-
-    #[test]
-    fn compact_groups_reserve_width_for_single_line_titles() {
-        assert!(group_width("Guides", &[], RibbonDensity::Compact) > ROW_HEIGHT);
-        assert!(group_width("Object", &[], RibbonDensity::Compact) > ROW_HEIGHT);
-    }
-
-    #[test]
-    fn figure_tiles_use_short_labels() {
-        let app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        let cases = [
-            (CommandId::NewCanvas(0), "Slides"),
-            (CommandId::NewCanvas(1), "1 Column"),
-            (CommandId::NewCanvas(2), "2 Columns"),
-            (CommandId::NewCanvas(3), "Poster"),
-            (CommandId::ChartType, "Chart"),
-            (CommandId::ApplyTheme("publication"), "Paper"),
-            (CommandId::ApplyTheme("presentation_dark"), "Dark"),
-            (CommandId::ApplyTheme("vibrant"), "Vibrant"),
-            (CommandId::CopyFigure, "Copy"),
-            (CommandId::Export(ExportFormat::Png), "PNG"),
-            (CommandId::Export(ExportFormat::Svg), "SVG"),
-        ];
-        for (id, expected) in cases {
-            assert_eq!(short_label(&commands::describe(&app, id)), expected);
-        }
     }
 }

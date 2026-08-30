@@ -104,6 +104,10 @@ pub(crate) fn caption(text: impl Into<String>) -> RichText {
     RichText::new(text).text_style(named(CAPTION_STYLE))
 }
 
+pub(crate) fn caption_font() -> FontId {
+    FontId::new(CAPTION_PT, FontFamily::Proportional)
+}
+
 #[cfg(test)]
 pub(crate) fn test_context() -> egui::Context {
     let ctx = egui::Context::default();
