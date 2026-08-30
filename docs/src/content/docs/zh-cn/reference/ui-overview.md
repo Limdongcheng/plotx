@@ -17,17 +17,19 @@ PlotX 的界面为英文；手册中加粗的英文词即界面上的原文标�
   无限画板。"页面"是画板上的一块带框区域，导出时对应一张图。拖动页面或
   数据表标题可调整位置；靠近其他框架时，会吸附到其边缘和框架间的标准间距。
   拖动时按住 <kbd>Alt</kbd> 可暂时绕过吸附。
-- **副侧栏（Secondary Side Bar）**——右侧面板，承载对象检查器和针对当前
-  选择的上下文分析工具。整栏作为一列滚动，因此再长的检查器也不会把下方工具
-  挤出可及范围。处理不在这里，它在画布上。
+- **副侧栏（Secondary Side Bar）**——右侧面板，承载对象检查器，以及
+  **Dataset tools** 标题下针对当前选择的上下文分析工作台（XPS、质谱、
+  膜片钳及各技术的工具面板）。整栏作为一列滚动，因此再长的检查器也不会把
+  下方工具挤出可及范围。处理不在这里，它在画布上。
 - **任务 dock（Task dock）**——画布右上角的卡片，承载多步任务：Processing、
-  Regions、Curve Fit 与 Statistics。同时打开两个及以上时会出现
-  **Process**、**Regions**、**Fit**、**Stats** 标签，一次显示一页。其
+  Regions、Curve Fit、Statistics 与 CRAFT。同时打开两个及以上时会出现
+  **Process**、**Regions**、**Fit**、**Stats**、**CRAFT** 标签，一次显示一页。其
   Processing 页对 1D 与伪 2D 数据集显示一条管线，对真 2D 谱显示两条：
   **F2 (direct)** 与 **F1 (indirect)**。参见[数据处理](/zh-cn/guides/processing/)。
 - **Ribbon**——按任务页签组织的命令条（**Data**、**Process**、
   **Analyze**、**Figure**、**Arrange**、**View**）。在 macOS 上，其任务行
   还承载原生窗口按钮和项目名。它是快捷入口：其上的一切也都能在菜单或命令面板中找到。
+  各页签的分组详见 [Ribbon](/zh-cn/reference/ribbon/)。
 - **状态栏**——底部条带，显示提示、进度和选择详情。
 
 两个侧栏随时可以显示或隐藏：点击 Ribbon 任务行右端的一对布局按钮，按

@@ -158,6 +158,15 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
             .map(|group| CommandId::PropertyGroup(group.section)),
     );
     ids.extend([PropertyStep::Lower, PropertyStep::Raise].map(CommandId::StepProperty));
+    ids.extend(
+        [
+            plotx_core::state::XpsWorkbenchTab::Acquisition,
+            plotx_core::state::XpsWorkbenchTab::Background,
+            plotx_core::state::XpsWorkbenchTab::Components,
+            plotx_core::state::XpsWorkbenchTab::Diagnostics,
+        ]
+        .map(CommandId::XpsWorkbench),
+    );
     ids.push(CommandId::CycleCursor);
     ids.extend(tool_commands().into_iter().map(CommandId::Tool));
     ids

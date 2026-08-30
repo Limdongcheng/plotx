@@ -71,7 +71,7 @@ fn trace_alignment_has_one_contextual_ribbon_command() {
         command.ribbon,
         Some(RibbonPlacement {
             tab: WorkflowTab::Analyze,
-            group: "Align",
+            group: "Overlay",
             priority: 1,
             applicability: Applicability::LineAlignmentOnly,
         })

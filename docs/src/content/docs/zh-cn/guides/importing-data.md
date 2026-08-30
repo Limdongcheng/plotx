@@ -28,7 +28,7 @@ PlotX 直接读取厂商 LC–MS、NMR、XPS、AFM 与电生理格式，无需�
 
 ## 打开文件
 
-把文件拖到 PlotX 窗口上，或使用工具栏的打开菜单：*Open File…*、
+把文件拖到 PlotX 窗口上，或使用 **Data** 页签的 **Import** 分组：*Open File…*、
 *Open Folder…*（用于 Bruker TopSpin、Varian/Agilent VnmrJ 与 Waters MassLynx RAW 等采集目录）、
 *Open Project…* 或 *Import Table…*。每个导入的数据集会出现在主侧栏中，
 并自动放置到画板上。

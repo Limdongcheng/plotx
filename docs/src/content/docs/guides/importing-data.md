@@ -29,7 +29,7 @@ no conversion step is needed.
 
 ## Opening files
 
-Drag a file onto the PlotX window, or use the toolbar's open menu:
+Drag a file onto the PlotX window, or use the **Data** tab's **Import** group:
 *Open File…*, *Open Folder…* (for acquisition directories such as Bruker
 TopSpin, Varian/Agilent VnmrJ, and Waters MassLynx RAW), *Open Project…*, or
 *Import Table…*.

@@ -12,7 +12,7 @@ everything except your recent-files list.
 
 - **Object snapping** — snap plots and shapes to page and object guides, and
   snap whole pages and table sheets to nearby frame edges and the standard gap
-  between frames. You can also toggle this from the toolbar. Hold `Alt` to
+  between frames. You can also toggle this from the **Arrange** tab. Hold `Alt` to
   bypass snapping for one drag.
 - **Equal scale for homonuclear 2D imports** — when both axes are frequency
   axes of the same nucleus, start an imported spectrum with equal F1/F2 scale

@@ -28,6 +28,9 @@ impl CommandId {
             Self::PropertyGroup(section) => format!("properties.group.{section}"),
             Self::StepProperty(step) => format!("properties.step.{}", step.as_str()),
             Self::Tool(tool) => format!("tool.{}", tool_slug(tool)),
+            Self::XpsWorkbench(tab) => {
+                format!("xps.workbench.{}", format!("{tab:?}").to_lowercase())
+            }
             Self::SetPanelLayout(layout) => {
                 format!("panel.layout.{}", panel_layout_slug(layout))
             }
@@ -311,6 +314,23 @@ pub(super) fn command_identity(
                 PropertyStep::Raise => (format!("Raise {setting}"), Some(icon::PLUS), None),
                 PropertyStep::Lower => (format!("Lower {setting}"), Some(icon::MINUS), None),
             }
+        }
+        CommandId::XpsWorkbench(tab) => {
+            use plotx_core::state::XpsWorkbenchTab;
+            let (label, glyph) = match tab {
+                XpsWorkbenchTab::Acquisition => ("XPS Acquisition", icon::INFO),
+                XpsWorkbenchTab::Background => ("XPS Background", icon::CHART_LINE_DOWN),
+                XpsWorkbenchTab::Components => ("XPS Components", icon::PUZZLE_PIECE),
+                XpsWorkbenchTab::Diagnostics => ("XPS Diagnostics", icon::GAUGE),
+            };
+            (
+                label.to_owned(),
+                Some(glyph),
+                Some(
+                    app.session.ui.xps_workbench_tab == tab
+                        && app.session.secondary_sidebar_visible,
+                ),
+            )
         }
         CommandId::CycleCursor => plain("Next Cursor", Some(icon::CROSSHAIR)),
         CommandId::Tool(tool) => (

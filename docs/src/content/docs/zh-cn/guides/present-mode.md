@@ -8,7 +8,7 @@ description: 全屏逐页展示你的页面。
 
 ## 开始演示
 
-在工具栏或命令面板（<kbd>Ctrl</kbd>+<kbd>K</kbd>）中选择 **Present
+在 **View** 页签或命令面板（<kbd>Ctrl</kbd>+<kbd>K</kbd>）中选择 **Present
 Full Screen**。演示从当前所在的页面开始。若尚未打开任何内容，PlotX 会
 提示没有可演示的页面。
 
