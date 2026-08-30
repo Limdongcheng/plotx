@@ -77,8 +77,7 @@ pub(super) fn controls_need_compacting(
     leading: f32,
     row_width: f32,
 ) -> bool {
-    leading + task_tabs_width(ui, density) + controls_width(app, ui, density, false) + 16.0
-        > row_width
+    leading + task_tabs_width(ui, density) + controls_width(app, ui, false) + 16.0 > row_width
 }
 
 pub(super) fn available_title_width(
@@ -92,7 +91,7 @@ pub(super) fn available_title_width(
     let remaining = row_width
         - leading
         - task_tabs_width(ui, density)
-        - controls_width(app, ui, density, compact_controls)
+        - controls_width(app, ui, compact_controls)
         - 24.0;
     (remaining >= INLINE_TITLE_MIN_WIDTH).then(|| remaining.min(INLINE_TITLE_MAX_WIDTH))
 }
@@ -116,13 +115,11 @@ fn task_tabs_width(ui: &Ui, density: RibbonDensity) -> f32 {
         + spacing * (WorkflowTab::ALL.len().saturating_sub(1) as f32)
 }
 
-fn controls_width(app: &PlotxApp, ui: &Ui, density: RibbonDensity, compact: bool) -> f32 {
+fn controls_width(app: &PlotxApp, ui: &Ui, compact: bool) -> f32 {
     use plotx_core::update::UpdateStatus;
 
     let collapse = if compact {
         icon::CARET_UP.to_owned()
-    } else if density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded {
-        format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
     } else if app.session.ui.ribbon_expanded {
         format!("{} Collapse ribbon", icon::CARET_UP)
     } else {

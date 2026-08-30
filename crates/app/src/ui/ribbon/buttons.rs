@@ -167,6 +167,14 @@ pub(super) fn ribbon_button(
         }
         response
     } else {
+        // Compact keeps the label next to the glyph: an icon alone cannot
+        // carry a command's meaning, and a label-less row turns every glyph
+        // pair that merely rhymes into a guessing game.
+        let label_color = if primary {
+            ui.visuals().selection.stroke.color
+        } else {
+            Color32::PLACEHOLDER
+        };
         if let Some(icon) = command.icon {
             job.append(
                 icon,
@@ -177,17 +185,22 @@ pub(super) fn ribbon_button(
                     ..Default::default()
                 },
             );
+            job.append(
+                &format!("  {label}"),
+                0.0,
+                TextFormat {
+                    font_id: crate::typography::callout_font(),
+                    color: label_color,
+                    ..Default::default()
+                },
+            );
         } else {
             job.append(
                 &label,
                 0.0,
                 TextFormat {
                     font_id: crate::typography::callout_font(),
-                    color: if primary {
-                        ui.visuals().selection.stroke.color
-                    } else {
-                        Color32::PLACEHOLDER
-                    },
+                    color: label_color,
                     ..Default::default()
                 },
             );
