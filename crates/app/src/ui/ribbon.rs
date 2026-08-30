@@ -137,8 +137,7 @@ fn render_task_row_contents(
         let response = ui.selectable_label(selected, crate::typography::headline(tab.label()));
         if response.clicked() {
             select_workflow_tab(app, tab);
-            // Picking a task re-opens a manually collapsed command area;
-            // width-driven auto-collapse still wins in `density()`.
+            // Picking a task re-opens a manually collapsed command area.
             app.session.ui.ribbon_expanded = true;
         }
     }
@@ -168,7 +167,7 @@ fn render_task_row_contents(
             .id_salt(egui::Id::new("ribbon_chrome_controls"))
             .global_scope(true);
         ui.scope_builder(scope, |ui| {
-            render_chrome_controls(app, clipboard, ui, density, compact_controls)
+            render_chrome_controls(app, clipboard, ui, compact_controls)
         });
     });
 }
@@ -177,39 +176,24 @@ fn render_chrome_controls(
     app: &mut PlotxApp,
     clipboard: &mut ClipboardTablePaste,
     ui: &mut Ui,
-    density: RibbonDensity,
     compact_controls: bool,
 ) {
-    let auto_collapsed = density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded;
-    let full_collapse_label = if auto_collapsed {
-        format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
-    } else if app.session.ui.ribbon_expanded {
-        format!("{} Collapse ribbon", icon::CARET_UP)
-    } else {
-        format!("{} Expand ribbon", icon::CARET_DOWN)
-    };
     let collapse_label = if compact_controls {
         if app.session.ui.ribbon_expanded {
             icon::CARET_UP.to_owned()
         } else {
             icon::CARET_DOWN.to_owned()
         }
+    } else if app.session.ui.ribbon_expanded {
+        format!("{} Collapse ribbon", icon::CARET_UP)
     } else {
-        full_collapse_label
+        format!("{} Expand ribbon", icon::CARET_DOWN)
     };
     // The strip next to the task tabs stays quiet: chrome buttons show
     // their frame only on hover so they read no heavier than the tabs.
-    let collapse = ui.add_enabled(
-        !auto_collapsed,
-        Button::new(collapse_label).frame_when_inactive(false),
-    );
-    let collapse = if auto_collapsed {
-        collapse.on_disabled_hover_text(
-            "The ribbon collapses automatically at this width; use menus or Search commands",
-        )
-    } else {
-        collapse.on_hover_text("Collapse or expand the ribbon command area")
-    };
+    let collapse = ui
+        .add(Button::new(collapse_label).frame_when_inactive(false))
+        .on_hover_text("Collapse or expand the ribbon command area");
     if collapse.clicked() {
         app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
     }

@@ -10,7 +10,6 @@ use super::super::commands::{CommandDescriptor, CommandId};
 use super::RibbonDensity;
 use super::buttons::short_label;
 
-pub(super) const AUTO_COLLAPSE_WIDTH: f32 = 760.0;
 /// One shared tile height (Full density) and row height (Compact) keeps every
 /// command in a group visually equal-sized.
 pub(super) const TILE_HEIGHT: f32 = 46.0;
@@ -37,20 +36,23 @@ pub(super) fn text_measure(ctx: egui::Context) -> impl Fn(&str, FontId) -> f32 {
 }
 
 /// The richest density whose content actually fits `width`: full icon-and-text
-/// tiles whenever the active tab's groups all fit, otherwise the compact icon
-/// row (whose own overflow moves whole groups into More). Below the absolute
-/// floor even icon rows crowd, so the command area collapses to menus.
+/// tiles whenever the active tab's groups all fit, otherwise the compact
+/// labelled row, whose own overflow moves whole groups into More.
 pub(super) fn density(
     width: f32,
     expanded: bool,
     groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
     measure: Measure,
 ) -> RibbonDensity {
-    if !expanded || width < AUTO_COLLAPSE_WIDTH {
+    if !expanded {
         RibbonDensity::Collapsed
     } else if required_width(groups, RibbonDensity::Full, measure) <= width {
         RibbonDensity::Full
     } else {
+        // Narrow widths stay Compact: overflow moves whole groups into More,
+        // and in the extreme the row degrades to the More menu alone. Only a
+        // deliberate collapse hides the command area — a window resize never
+        // takes every command away.
         RibbonDensity::Compact
     }
 }
@@ -162,27 +164,36 @@ fn segmented_width(family: &[&CommandDescriptor], measure: Measure) -> f32 {
 }
 
 pub(super) fn button_width(command: &CommandDescriptor, measure: Measure) -> f32 {
-    if command.icon.is_some() {
-        ROW_HEIGHT
+    let label = measure(&short_label(command), crate::typography::callout_font());
+    // The glyph and its two-space gap ride ahead of an icon-bearing label.
+    let content = if command.icon.is_some() {
+        label + 24.0
     } else {
-        (measure(&short_label(command), crate::typography::callout_font()) + 16.0)
-            .clamp(40.0, 140.0)
-    }
+        label
+    };
+    (content + 16.0).clamp(40.0, 180.0)
 }
 
-/// Which groups stay on the Ribbon within `budget`. Groups are admitted in
-/// priority order and admission stops at the first group that does not fit, so
-/// the visible set is always a highest-priority prefix: nothing in the More
-/// menu ever outranks a group that stayed visible.
+/// Which groups stay on the Ribbon within `budget`. Admission runs in
+/// priority order; when a group does not fit, its peers at the same priority
+/// may still take the remaining space, but nothing of lower priority can
+/// leapfrog it. The invariant: a group in the More menu never outranks a
+/// group that stayed visible (equal rank may split, so one oversized group
+/// cannot dam every smaller peer behind it).
 pub(super) fn shown_groups(priorities: &[u8], widths: &[f32], budget: f32) -> Vec<bool> {
     debug_assert_eq!(priorities.len(), widths.len());
     let mut ranked: Vec<usize> = (0..priorities.len()).collect();
     ranked.sort_by_key(|&index| priorities[index]);
     let mut shown = vec![false; priorities.len()];
     let mut used = 0.0;
+    let mut blocked_at: Option<u8> = None;
     for index in ranked {
-        if used + widths[index] > budget {
+        if blocked_at.is_some_and(|blocked| priorities[index] > blocked) {
             break;
+        }
+        if used + widths[index] > budget {
+            blocked_at.get_or_insert(priorities[index]);
+            continue;
         }
         shown[index] = true;
         used += widths[index];
@@ -271,10 +282,6 @@ mod tests {
         let catalog = commands::catalog(&app);
         let groups = groups_for_tab(&catalog, WorkflowTab::View);
         let full_need = required_width(&groups, RibbonDensity::Full, &estimate);
-        assert!(
-            full_need > AUTO_COLLAPSE_WIDTH,
-            "test premise: the View tab's full-density content ({full_need}) must exceed the collapse floor"
-        );
 
         // Full the moment the tab's content fits — no fixed window breakpoint.
         assert_eq!(
@@ -285,9 +292,12 @@ mod tests {
             density(full_need - 1.0, true, &groups, &estimate),
             RibbonDensity::Compact
         );
+        // Width never hides the command area: even an absurdly narrow window
+        // stays Compact (the overflow menu absorbs the groups). Only the
+        // user's own collapse produces Collapsed.
         assert_eq!(
-            density(700.0, true, &groups, &estimate),
-            RibbonDensity::Collapsed
+            density(100.0, true, &groups, &estimate),
+            RibbonDensity::Compact
         );
         assert_eq!(
             density(full_need + 1.0, false, &groups, &estimate),
@@ -302,7 +312,7 @@ mod tests {
     }
 
     #[test]
-    fn overflow_keeps_the_highest_priority_prefix() {
+    fn overflow_never_shows_a_group_outranked_by_a_hidden_one() {
         let priorities = [2u8, 0, 1, 3];
         let widths = [40.0, 50.0, 30.0, 20.0];
         // 50 + 30 fit; the priority-2 group does not, and it must also block
@@ -310,6 +320,17 @@ mod tests {
         // never appear while a higher-priority one sits in the More menu.
         let shown = shown_groups(&priorities, &widths, 90.0);
         assert_eq!(shown, vec![false, true, true, false]);
+    }
+
+    #[test]
+    fn an_oversized_group_does_not_dam_its_equal_priority_peers() {
+        let priorities = [1u8, 1, 2];
+        let widths = [100.0, 30.0, 10.0];
+        // The oversized first group overflows, its equal-priority peer still
+        // takes the space, and everything of lower priority follows it into
+        // More.
+        let shown = shown_groups(&priorities, &widths, 40.0);
+        assert_eq!(shown, vec![false, true, false]);
     }
 
     #[test]
