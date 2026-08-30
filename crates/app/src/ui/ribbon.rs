@@ -162,57 +162,91 @@ fn render_task_row_contents(
     }
 
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        let auto_collapsed = density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded;
-        let full_collapse_label = if auto_collapsed {
-            format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
-        } else if app.session.ui.ribbon_expanded {
-            format!("{} Collapse ribbon", icon::CARET_UP)
-        } else {
-            format!("{} Expand ribbon", icon::CARET_DOWN)
-        };
-        let collapse_label = if compact_controls {
-            if app.session.ui.ribbon_expanded {
-                icon::CARET_UP.to_owned()
-            } else {
-                icon::CARET_DOWN.to_owned()
-            }
-        } else {
-            full_collapse_label
-        };
-        // The strip next to the task tabs stays quiet: chrome buttons show
-        // their frame only on hover so they read no heavier than the tabs.
-        let collapse = ui.add_enabled(
-            !auto_collapsed,
-            Button::new(collapse_label).frame_when_inactive(false),
-        );
-        let collapse = if auto_collapsed {
-            collapse.on_disabled_hover_text(
-                "The ribbon collapses automatically at this width; use menus or Search commands",
-            )
-        } else {
-            collapse.on_hover_text("Collapse or expand the ribbon command area")
-        };
-        if collapse.clicked() {
-            app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
-        }
-        update_button(app, ui, compact_controls);
-        let palette = commands::describe(app, CommandId::CommandPalette);
-        let search_label = if compact_controls {
-            icon::MAGNIFYING_GLASS.to_owned()
-        } else {
-            format!("{} Search commands", icon::MAGNIFYING_GLASS)
-        };
-        if ui
-            .add(Button::new(search_label).frame_when_inactive(false))
-            .on_hover_text(format!(
-                "Search every command ({})",
-                palette.shortcut.as_deref().unwrap_or("Ctrl+K")
-            ))
-            .clicked()
-        {
-            commands::execute(CommandId::CommandPalette, app, clipboard, ui.ctx());
-        }
+        // Stable id scope: siblings earlier in this row (the inline project
+        // title, tab labels) come and go with app state; without this every
+        // control in the strip changes id when they do, which drops focus
+        // and trips egui's rect-changed-id debug overlay.
+        let scope = UiBuilder::new()
+            .id_salt(egui::Id::new("ribbon_chrome_controls"))
+            .global_scope(true);
+        ui.scope_builder(scope, |ui| {
+            render_chrome_controls(app, clipboard, ui, density, compact_controls)
+        });
     });
+}
+
+fn render_chrome_controls(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    density: RibbonDensity,
+    compact_controls: bool,
+) {
+    let auto_collapsed = density == RibbonDensity::Collapsed && app.session.ui.ribbon_expanded;
+    let full_collapse_label = if auto_collapsed {
+        format!("{} Ribbon auto-collapsed", icon::CARET_DOWN)
+    } else if app.session.ui.ribbon_expanded {
+        format!("{} Collapse ribbon", icon::CARET_UP)
+    } else {
+        format!("{} Expand ribbon", icon::CARET_DOWN)
+    };
+    let collapse_label = if compact_controls {
+        if app.session.ui.ribbon_expanded {
+            icon::CARET_UP.to_owned()
+        } else {
+            icon::CARET_DOWN.to_owned()
+        }
+    } else {
+        full_collapse_label
+    };
+    // The strip next to the task tabs stays quiet: chrome buttons show
+    // their frame only on hover so they read no heavier than the tabs.
+    let collapse = ui.add_enabled(
+        !auto_collapsed,
+        Button::new(collapse_label).frame_when_inactive(false),
+    );
+    let collapse = if auto_collapsed {
+        collapse.on_disabled_hover_text(
+            "The ribbon collapses automatically at this width; use menus or Search commands",
+        )
+    } else {
+        collapse.on_hover_text("Collapse or expand the ribbon command area")
+    };
+    if collapse.clicked() {
+        app.session.ui.ribbon_expanded = !app.session.ui.ribbon_expanded;
+    }
+    update_button(app, ui, compact_controls);
+    let palette = commands::describe(app, CommandId::CommandPalette);
+    let search_label = if compact_controls {
+        icon::MAGNIFYING_GLASS.to_owned()
+    } else {
+        format!("{} Search commands", icon::MAGNIFYING_GLASS)
+    };
+    if ui
+        .add(Button::new(search_label).frame_when_inactive(false))
+        .on_hover_text(format!(
+            "Search every command ({})",
+            palette.shortcut.as_deref().unwrap_or("Ctrl+K")
+        ))
+        .clicked()
+    {
+        commands::execute(CommandId::CommandPalette, app, clipboard, ui.ctx());
+    }
+    ui.separator();
+    // Right-to-left layout: added secondary-first so the pair reads
+    // [left sidebar][right sidebar], mirroring the window.
+    super::ribbon_chrome::sidebar_toggle_button(
+        app,
+        clipboard,
+        ui,
+        CommandId::ToggleSecondarySidebar,
+    );
+    super::ribbon_chrome::sidebar_toggle_button(
+        app,
+        clipboard,
+        ui,
+        CommandId::TogglePrimarySidebar,
+    );
 }
 
 fn select_workflow_tab(app: &mut PlotxApp, tab: WorkflowTab) {

@@ -1,6 +1,10 @@
 use super::*;
 
 const MIN_WORKSPACE_WIDTH: f32 = 320.0;
+/// Releasing a resize drag with the pointer this far past the sidebar's
+/// minimum width hides the sidebar. Wide enough that overshooting a fast
+/// resize does not hide it by accident.
+const HIDE_DRAG_SLACK: f32 = 60.0;
 
 pub(super) fn render(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_width: f32) {
     let mut primary_rect = None;
@@ -45,6 +49,20 @@ pub(super) fn render(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_widt
         );
         app.session.primary_sidebar_width = response.response.rect.width();
         primary_rect = Some(response.inner);
+        if resize_dragged_past_min(
+            ui.ctx(),
+            Id::new("primary_sidebar"),
+            response.inner,
+            SidebarEdge::Right,
+        ) {
+            app.session.primary_sidebar_visible = false;
+            sidebar_hidden_status(app, commands::CommandId::TogglePrimarySidebar, "Left");
+        }
+    } else {
+        // A shown panel consumes one auto-id slot from this ui. Burn the same
+        // slot while hidden so the later siblings' container ids (secondary
+        // panel, central panel) do not shift when a sidebar toggles.
+        ui.skip_ahead_auto_ids(1);
     }
 
     if app.session.secondary_sidebar_visible {
@@ -81,8 +99,56 @@ pub(super) fn render(app: &mut PlotxApp, ui: &mut Ui, dark: bool, workspace_widt
         );
         app.session.secondary_sidebar_width = response.response.rect.width();
         secondary_rect = Some(response.inner);
+        if resize_dragged_past_min(
+            ui.ctx(),
+            Id::new("secondary_sidebar"),
+            response.inner,
+            SidebarEdge::Left,
+        ) {
+            app.session.secondary_sidebar_visible = false;
+            sidebar_hidden_status(app, commands::CommandId::ToggleSecondarySidebar, "Right");
+        }
+    } else {
+        // See the primary branch: keep the sibling auto-id sequence stable.
+        ui.skip_ahead_auto_ids(1);
     }
     super::workspace_geometry::set_sidebar_rects(ui.ctx(), primary_rect, secondary_rect);
+}
+
+/// True when a resize drag on `panel_id` just ended with the pointer well past
+/// the sidebar's minimum width — the user pulled the edge "through" the
+/// sidebar. egui clamps the panel at its minimum during the drag, so the
+/// overshoot is the pointer-to-edge distance on release.
+fn resize_dragged_past_min(
+    ctx: &egui::Context,
+    panel_id: Id,
+    card_rect: Rect,
+    edge: SidebarEdge,
+) -> bool {
+    let Some(resize) = ctx.read_response(panel_id.with("__resize")) else {
+        return false;
+    };
+    if !resize.drag_stopped() {
+        return false;
+    }
+    let Some(pointer) = resize
+        .interact_pointer_pos()
+        .or_else(|| ctx.pointer_interact_pos())
+    else {
+        return false;
+    };
+    match edge {
+        SidebarEdge::Right => pointer.x < card_rect.right() - HIDE_DRAG_SLACK,
+        SidebarEdge::Left => pointer.x > card_rect.left() + HIDE_DRAG_SLACK,
+    }
+}
+
+fn sidebar_hidden_status(app: &mut PlotxApp, id: commands::CommandId, side: &str) {
+    let recovery = match shortcuts::shortcut_label(id) {
+        Some(chord) => format!("the layout buttons in the title row or {chord}"),
+        None => "the layout buttons in the title row".to_owned(),
+    };
+    app.session.status = format!("{side} sidebar hidden. Show it again with {recovery}.");
 }
 
 fn show_sidebar(
@@ -98,19 +164,32 @@ fn show_sidebar(
         (Id::new("secondary_sidebar"), SidebarEdge::Left)
     };
     show_resizable_sidebar(panel, ui, id, edge, |ui| {
-        let size = ui.available_size();
-        let frame = card_frame(dark, egui::Margin::ZERO);
-        let inset = frame.total_margin().sum();
-        frame
-            .show(ui, |ui| {
-                ui.set_min_size((size - inset).max(Vec2::ZERO));
-                if primary {
-                    primary_sidebar::render(app, ui);
-                } else {
-                    secondary_sidebar::render(app, ui);
-                }
-            })
-            .response
-            .rect
+        // Anchor the content ids globally: a Ui's per-pass unique id folds in
+        // the parent's auto-id counter, so without this every widget in this
+        // sidebar changes id whenever an earlier sibling panel toggles. That
+        // dropped focus mid-edit and tripped egui's rect-changed-id debug
+        // overlay (one-frame red boxes) on the unmoved sidebar.
+        ui.scope_builder(
+            UiBuilder::new()
+                .id_salt(id.with("stable_scope"))
+                .global_scope(true),
+            |ui| {
+                let size = ui.available_size();
+                let frame = card_frame(dark, egui::Margin::ZERO);
+                let inset = frame.total_margin().sum();
+                frame
+                    .show(ui, |ui| {
+                        ui.set_min_size((size - inset).max(Vec2::ZERO));
+                        if primary {
+                            primary_sidebar::render(app, ui);
+                        } else {
+                            secondary_sidebar::render(app, ui);
+                        }
+                    })
+                    .response
+                    .rect
+            },
+        )
+        .inner
     })
 }

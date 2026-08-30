@@ -19,8 +19,11 @@ flow from raw data to a finished figure.
   tasks: Processing, Regions, Curve Fit, and Statistics. Open two or more and
   they become tabs on the same card, one page shown at a time.
 
-Hide either side bar from **View** or the **View** Ribbon to give the canvas
-more room.
+Hide either side bar to give the canvas more room: click its layout button at
+the right end of the Ribbon's task row, press <kbd>Ctrl</kbd>+<kbd>B</kbd>
+(left) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (right;
+<kbd>Cmd</kbd> on macOS), or drag the side bar's inner edge past its minimum
+width. The same commands live in the **View** menu and the **View** Ribbon.
 
 ## Menus and task Ribbon
 

@@ -16,7 +16,10 @@ description: 五分钟了解 PlotX 的界面与典型工作流。
   Curve Fit 与 Statistics。同时打开两个及以上时，它们成为同一张卡片上的标签，
   一次显示一页。
 
-在 **View** 菜单或 **View** Ribbon 中可隐藏任意一侧侧栏，为画布腾出空间。
+隐藏任意一侧侧栏可为画布腾出空间：点击 Ribbon 任务行右端对应的布局按钮，按
+<kbd>Ctrl</kbd>+<kbd>B</kbd>（左）或 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>
+（右；macOS 上为 <kbd>Cmd</kbd>），或把侧栏内缘拖过其最小宽度。同样的命令也在
+**View** 菜单和 **View** Ribbon 中。
 
 ## 菜单与任务 Ribbon
 

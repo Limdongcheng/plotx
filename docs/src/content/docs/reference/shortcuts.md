@@ -97,6 +97,8 @@ layer you want from the Object inspector.
 | `Ctrl` + `C` | Copy the single selected page frame (or the active canvas) to the clipboard as bitmap + vector |
 | `Ctrl` + `Shift` + `V` | Paste a delimited table (comma, tab, or semicolon) from the clipboard as a new data table |
 | `Ctrl` + `,` | Open Preferences |
+| `Ctrl` + `B` | Show or hide the left Side Bar |
+| `Ctrl` + `Shift` + `B` | Show or hide the right Side Bar |
 | `Ctrl` + `K` or `Ctrl` + `Shift` + `P` | Open the [command palette](/reference/command-palette/) |
 
 `+` and `-` act on the plot you have selected, or on the active plot when
