@@ -2,15 +2,16 @@
 //! short labels, and the overflow-menu rows.
 
 use egui::text::LayoutJob;
-use egui::{Align2, Button, Color32, FontId, RichText, TextFormat, Ui, Vec2};
+use egui::{Align2, Button, Color32, FontId, RichText, Stroke, TextFormat, Ui, Vec2};
 use plotx_core::actions::ZOrder;
 use plotx_core::export::ExportFormat;
+use plotx_core::layout::SpacingMode;
 use plotx_core::state::{PlotxApp, Tool};
 
 use super::super::clipboard_table::ClipboardTablePaste;
 use super::super::commands::{self, CommandDescriptor, CommandId};
 use super::RibbonDensity;
-use super::layout::{Measure, ROW_HEIGHT, TILE_HEIGHT, button_width};
+use super::layout::{Measure, ROW_HEIGHT, TILE_HEIGHT, button_width, segment_width};
 
 /// Ribbon buttons carry short verb labels; the full command name and shortcut
 /// stay in the tooltip, menus and the command palette.
@@ -54,6 +55,14 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
         CommandId::TogglePrimarySidebar => "Left Bar".to_owned(),
         CommandId::ToggleSecondarySidebar => "Right Bar".to_owned(),
         CommandId::ArrangeGrid(rows, cols) => format!("Plots {rows} × {cols}"),
+        // Segment captions: the family's shared "Spacing:" / "Minimum
+        // spacing:" prefix lives in the tooltip, not on every segment.
+        CommandId::SetSpacingMode(mode) => match mode {
+            SpacingMode::Frame => "Frame",
+            SpacingMode::Visual => "Visual",
+        }
+        .to_owned(),
+        CommandId::SetGutterPreset(preset) => preset.label().to_owned(),
         CommandId::ZOrder(mode) => match mode {
             ZOrder::Front => "To Front",
             ZOrder::Forward => "Forward",
@@ -84,9 +93,14 @@ pub(super) fn ribbon_button(
     measure: Measure,
 ) {
     let label = short_label(command);
-    // Icons carry the accent colour; label text keeps the theme colour via the
-    // placeholder, which also inherits the correct disabled/selected colours.
-    let icon_color = if command.enabled && command.checked != Some(true) {
+    let primary = primary_run(command.id) && command.enabled;
+    // Icons carry the accent colour whenever the command is available — a
+    // checked toggle keeps it, so the active tool never reads weaker than an
+    // idle one. Labels use the placeholder so they inherit the correct
+    // disabled/selected colours from the widget state.
+    let icon_color = if primary {
+        ui.visuals().selection.stroke.color
+    } else if command.enabled {
         ui.visuals().hyperlink_color
     } else {
         Color32::PLACEHOLDER
@@ -100,17 +114,28 @@ pub(super) fn ribbon_button(
         // two visible rows ourselves so both share the tile's exact centre.
         // LayoutJob's per-row offsets otherwise make differently sized glyphs
         // appear alternately left- and right-aligned.
-        let button = Button::selectable(
+        let mut button = Button::selectable(
             selected,
             RichText::new(&label).size(1.0).color(Color32::TRANSPARENT),
         )
         .min_size(Vec2::new(tile, TILE_HEIGHT));
+        if primary {
+            // `selectable(false)` hides the resting frame; a primary button
+            // must keep it or the fill never paints.
+            button = button
+                .frame_when_inactive(true)
+                .fill(ui.visuals().selection.bg_fill)
+                .stroke(Stroke::NONE);
+        }
         let response = ui.add_enabled(command.enabled, button);
-        let text_color = ui
-            .style()
-            .button_style(response.widget_state(), selected)
-            .text_style
-            .color;
+        let text_color = if primary {
+            ui.visuals().selection.stroke.color
+        } else {
+            ui.style()
+                .button_style(response.widget_state(), selected)
+                .text_style
+                .color
+        };
         let center = response.rect.center();
         if let Some(icon) = command.icon {
             ui.painter().text(
@@ -118,7 +143,7 @@ pub(super) fn ribbon_button(
                 Align2::CENTER_CENTER,
                 icon,
                 icon_font,
-                if command.enabled && !selected {
+                if command.enabled {
                     icon_color
                 } else {
                     text_color
@@ -158,15 +183,71 @@ pub(super) fn ribbon_button(
                 0.0,
                 TextFormat {
                     font_id: crate::typography::callout_font(),
-                    color: Color32::PLACEHOLDER,
+                    color: if primary {
+                        ui.visuals().selection.stroke.color
+                    } else {
+                        Color32::PLACEHOLDER
+                    },
                     ..Default::default()
                 },
             );
         }
-        let button = Button::selectable(command.checked == Some(true), job)
+        let mut button = Button::selectable(command.checked == Some(true), job)
             .min_size(Vec2::new(button_width(command, measure), ROW_HEIGHT));
+        if primary {
+            button = button
+                .frame_when_inactive(true)
+                .fill(ui.visuals().selection.bg_fill)
+                .stroke(Stroke::NONE);
+        }
         ui.add_enabled(command.enabled, button)
     };
+    respond(app, clipboard, ui, command, response);
+}
+
+/// One-shot Run commands render as filled primary buttons — the same accent
+/// treatment as a task card's Run button — so "executes the computation" and
+/// "switches a mode" stop sharing one resting look.
+fn primary_run(id: CommandId) -> bool {
+    matches!(
+        id,
+        CommandId::RunPeakFit | CommandId::RunCurveFit | CommandId::RunCraft
+    )
+}
+
+/// A mutually exclusive command family as one segmented control: adjacent
+/// framed segments with exactly one selected, replacing a row of look-alike
+/// buttons that gave no hint the choices exclude each other.
+pub(super) fn segmented_run(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    entries: &[&CommandDescriptor],
+    measure: Measure,
+) {
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.x = 1.0;
+        for command in entries {
+            let selected = command.checked == Some(true);
+            let button =
+                Button::selectable(selected, crate::typography::callout(short_label(command)))
+                    .frame_when_inactive(true)
+                    .min_size(Vec2::new(segment_width(command, measure), ROW_HEIGHT));
+            let response = ui.add_enabled(command.enabled, button);
+            respond(app, clipboard, ui, command, response);
+        }
+    });
+}
+
+/// Shared tail of every Ribbon command widget: the full-name tooltip (with
+/// shortcut and, when disabled, the unblock reason) and catalog execution.
+fn respond(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &Ui,
+    command: &CommandDescriptor,
+    response: egui::Response,
+) {
     let tip = match &command.shortcut {
         Some(shortcut) => format!("{} ({shortcut})", command.label),
         None => command.label.clone(),

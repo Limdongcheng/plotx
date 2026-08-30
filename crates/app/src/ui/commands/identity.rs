@@ -58,15 +58,15 @@ pub(super) fn command_identity(
         ),
         CommandId::ClearRecentFiles => plain("Clear Recent Files", None),
         CommandId::HelpManual => plain("User Manual", Some(icon::BOOK_OPEN)),
-        CommandId::ImportTable => plain("Import Table…", Some(icon::TABLE)),
-        CommandId::ImportImage => plain("Add Images…", Some(icon::FILE)),
+        CommandId::ImportTable => plain("Import Table…", Some(icon::FILE_CSV)),
+        CommandId::ImportImage => plain("Add Images…", Some(icon::IMAGES)),
         CommandId::ImportImageFirstFrame => {
-            plain("Add Animated Image First Frame…", Some(icon::FILE))
+            plain("Add Animated Image First Frame…", Some(icon::FILM_STRIP))
         }
         CommandId::ImportImageWithoutMetadata => {
-            plain("Add Images Without Metadata…", Some(icon::FILE))
+            plain("Add Images Without Metadata…", Some(icon::IMAGE))
         }
-        CommandId::ImportTiffPages => plain("Add All TIFF Pages…", Some(icon::FILE)),
+        CommandId::ImportTiffPages => plain("Add All TIFF Pages…", Some(icon::IMAGES_SQUARE)),
         CommandId::PasteImage => plain("Paste Image", Some(icon::CLIPBOARD_TEXT)),
         CommandId::CancelImageImport => plain("Cancel Image Import", Some(icon::X)),
         CommandId::ReplaceImage => plain("Replace Image…", Some(icon::ARROWS_CLOCKWISE)),
@@ -127,11 +127,11 @@ pub(super) fn command_identity(
         ),
         CommandId::ToggleSecondarySidebar => (
             "Right Sidebar".into(),
-            Some(icon::SIDEBAR),
+            Some(icon::SIDEBAR_SIMPLE),
             Some(app.session.secondary_sidebar_visible),
         ),
         CommandId::ZoomToFit => ("Zoom to Fit".into(), Some(icon::ARROWS_OUT), None),
-        CommandId::ZoomToSelection => ("Zoom to Selection".into(), None, None),
+        CommandId::ZoomToSelection => ("Zoom to Selection".into(), Some(icon::CORNERS_OUT), None),
         CommandId::FitPlotY => (
             "Fit Plot Vertically".into(),
             Some(icon::ARROWS_VERTICAL),
@@ -185,14 +185,14 @@ pub(super) fn command_identity(
         CommandId::ApplyProcessingTemplate => {
             plain("Apply Processing Template…", Some(icon::MAGIC_WAND))
         }
-        CommandId::Craft => plain("CRAFT…", Some(icon::WAVEFORM)),
+        CommandId::Craft => plain("CRAFT…", Some(icon::WAVES)),
         CommandId::RunCraft => plain("Run CRAFT", Some(icon::PLAY)),
         CommandId::CraftComponentTable => plain("Create CRAFT Data Table", Some(icon::TABLE)),
         CommandId::SpectrumArithmetic => plain("Spectrum Arithmetic…", Some(icon::MATH_OPERATIONS)),
         CommandId::AlignSpectra => plain("Align Spectra…", Some(icon::ARROWS_LEFT_RIGHT)),
         CommandId::AlignTraces => plain("Align Traces…", Some(icon::ARROWS_LEFT_RIGHT)),
         CommandId::StackData => plain("Stack Selected Data", Some(icon::STACK)),
-        CommandId::ExtractMassSpectrum => plain("Extract Mass Spectrum", Some(icon::WAVE_SINE)),
+        CommandId::ExtractMassSpectrum => plain("Extract Mass Spectrum", Some(icon::WAVE_SAWTOOTH)),
         CommandId::SelectRange => (
             "Analysis Range".into(),
             Some(icon::SELECTION),
@@ -205,7 +205,7 @@ pub(super) fn command_identity(
             Some(app.session.tool == Tool::Regions),
         ),
         CommandId::SeriesTable => plain("Series Table", Some(icon::TABLE)),
-        CommandId::DetectPeaks => plain("Detect Peaks", Some(icon::WAVE_SINE)),
+        CommandId::DetectPeaks => plain("Detect Peaks", Some(icon::WAVE_TRIANGLE)),
         CommandId::PeakList => (
             "Peak List".into(),
             Some(icon::LIST_BULLETS),
@@ -227,7 +227,7 @@ pub(super) fn command_identity(
             Some(icon::SIGMA),
             Some(app.session.tool == Tool::Integrate),
         ),
-        CommandId::Multiplets => plain("Multiplets", Some(icon::BRACKETS_CURLY)),
+        CommandId::Multiplets => plain("Multiplets", Some(icon::TREE_STRUCTURE)),
         CommandId::TidyBoard => plain("Tidy Up Frames", Some(icon::BROOM)),
         CommandId::CanvasSettings => plain("Canvas Size & Settings…", Some(icon::FRAME_CORNERS)),
         CommandId::SetCanvasSizePreset(id) => {
@@ -241,7 +241,7 @@ pub(super) fn command_identity(
             Some(icon::SQUARES_FOUR),
             None,
         ),
-        CommandId::SimplifyInnerAxes => plain("Simplify Inner Axes", Some(icon::SQUARES_FOUR)),
+        CommandId::SimplifyInnerAxes => plain("Simplify Inner Axes", Some(icon::ARROWS_IN_SIMPLE)),
         CommandId::SetSpacingMode(mode) => {
             let checked = app
                 .session
@@ -263,7 +263,7 @@ pub(super) fn command_identity(
                     preset.label(),
                     preset.millimetres()
                 ),
-                Some(icon::ARROWS_LEFT_RIGHT),
+                Some(icon::ARROWS_OUT_LINE_HORIZONTAL),
                 Some(checked),
             )
         }
@@ -334,10 +334,10 @@ fn tool_icon(tool: Tool) -> Option<&'static str> {
     Some(match tool {
         Tool::Select => icon::CURSOR,
         Tool::BrowseZoom => icon::MAGNIFYING_GLASS_PLUS,
-        Tool::ManualPhase => icon::WAVE_SINE,
+        Tool::ManualPhase => icon::ANGLE,
         Tool::SelectRegion => icon::SELECTION,
         Tool::Integrate => icon::SIGMA,
-        Tool::Peaks => icon::MAP_PIN,
+        Tool::Peaks => icon::PUSH_PIN,
         Tool::InspectCursor | Tool::DeltaCursor => icon::CROSSHAIR,
         Tool::Symmetry => icon::CROSSHAIR,
         Tool::Slice => icon::SCISSORS,
