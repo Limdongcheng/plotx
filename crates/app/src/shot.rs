@@ -24,7 +24,7 @@ use plotx_core::settings::Settings;
 use plotx_core::state::{
     AnalysisSelection, AxisRange, DEFAULT_CANVAS_SIZE_MM, Dataset, FrameRef, LineShapeKind,
     Nmr2DDataset, NmrDataset, Peak2DOrigin, Peak2DPoint, Peak2DReview, PlotxApp, Region, RegionId,
-    Tool, XpsDataset, region_color,
+    Tool, WorkflowTab, XpsDataset, region_color,
 };
 use plotx_io::xps::{
     XpsEnergyKind, XpsExperiment, XpsMeasurement, XpsMeasurementId, XpsRegion, XpsRegionId,
@@ -91,6 +91,10 @@ enum Op {
     XpsSetup,
     CraftSetup,
     XpsTab(plotx_core::state::XpsWorkbenchTab),
+    /// Show a Ribbon task tab. Sets the state directly (like [`Op::XpsTab`])
+    /// so the capture shows the tab's command row without the side effects a
+    /// real tab click has (opening task cards or sidebar tool groups).
+    RibbonTab(plotx_core::state::WorkflowTab),
     Zoom(f32),
     Resize(f32, f32),
 }
@@ -143,6 +147,20 @@ const SCENES: &[Scene] = &[
     shot(10, "ribbon_720"),
     act(2, Op::Resize(900.0, 760.0)),
     shot(12, "ribbon_900"),
+    // Every task tab at the in-between width, where density and overflow do
+    // the most work. The state carries a fitted 1D spectrum, so contextual
+    // groups representative of the core workflow are present.
+    act(2, Op::RibbonTab(WorkflowTab::Data)),
+    shot(6, "ribbon_data_900"),
+    act(2, Op::RibbonTab(WorkflowTab::Process)),
+    shot(6, "ribbon_process_900"),
+    act(2, Op::RibbonTab(WorkflowTab::Figure)),
+    shot(6, "ribbon_figure_900"),
+    act(2, Op::RibbonTab(WorkflowTab::Arrange)),
+    shot(6, "ribbon_arrange_900"),
+    act(2, Op::RibbonTab(WorkflowTab::View)),
+    shot(6, "ribbon_view_900"),
+    act(2, Op::RibbonTab(WorkflowTab::Analyze)),
     act(2, Op::Resize(1440.0, 900.0)),
     shot(12, "ribbon_1440"),
     act(2, Op::RegionResult),
@@ -361,6 +379,7 @@ fn run_op(op: Op, app: &mut PlotxApp, ctx: &egui::Context) -> Result<(), String>
         Op::XpsSetup => xps_setup(app, ctx)?,
         Op::CraftSetup => craft_shot::setup(app, ctx)?,
         Op::XpsTab(tab) => app.session.ui.xps_workbench_tab = tab,
+        Op::RibbonTab(tab) => app.session.ui.ribbon_tab = tab,
         Op::Zoom(factor) => ctx.set_zoom_factor(factor),
         Op::Resize(w, h) => {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w, h)));
