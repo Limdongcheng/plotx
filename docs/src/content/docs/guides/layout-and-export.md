@@ -7,7 +7,7 @@ description: Arranging figures on the infinite board and sizing pages for journa
 
 Plots live on an infinite board organized into pages. Dragging a frame snaps
 it to the page grid, margins, and the edges of neighboring frames; snapping
-can be toggled off from the toolbar. The arrange menu in the toolbar offers
+can be toggled off on the **Arrange** tab. The **Arrange** tab also offers
 alignment (with two or more frames selected), horizontal / vertical
 distribution (three or more), z-ordering, and a *Tidy up frames* command.
 

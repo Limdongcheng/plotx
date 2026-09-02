@@ -56,7 +56,7 @@ and click the canvas. See [Annotations](/guides/annotations/).
 
 ## 5. Export
 
-Open the export menu in the toolbar and choose a vector format — SVG for
+Use the **Figure** tab's **Output** group (or **File → Export**) and choose a vector format — SVG for
 further editing, PDF for manuscripts — or a raster preset such as
 *Single column · 89 mm · 600 dpi · TIFF*. The export precheck warns if font
 sizes or line widths violate the chosen preset before anything is written.

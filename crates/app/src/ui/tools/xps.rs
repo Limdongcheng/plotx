@@ -22,6 +22,14 @@ struct WindowDraft {
     high_ev: f64,
 }
 
+/// Ensure-on navigation from the catalog: reveal the workbench on `tab`,
+/// never toggle it away.
+pub(crate) fn open_workbench(app: &mut PlotxApp, tab: XpsWorkbenchTab) {
+    app.session.ui.xps_workbench_tab = tab;
+    app.session.secondary_sidebar_visible = true;
+    app.session.ui.requested_tool_group = Some(plotx_core::state::ToolGroup::Xps);
+}
+
 pub(super) fn xps_group(app: &mut PlotxApp, dataset_index: usize, ui: &mut Ui) -> bool {
     let Some(xps) = app
         .doc

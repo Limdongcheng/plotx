@@ -34,6 +34,7 @@ use slice::slice_group;
 use symmetry::symmetry_group;
 
 pub(super) use line_fit::line_fit_shape_id;
+pub(super) use xps::open_workbench as open_xps_workbench;
 
 #[derive(Clone, Copy, Default)]
 struct DeferredReferenceValue {

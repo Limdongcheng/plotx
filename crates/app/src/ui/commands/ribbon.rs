@@ -48,7 +48,8 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
             Applicability::ToolGroup(ToolGroup::Peaks),
         ),
         CommandId::Tool(Tool::Symmetry) => (Analyze, "Review", 1, Homonuclear2dOnly),
-        CommandId::AlignTraces => (Analyze, "Align", 1, LineAlignmentOnly),
+        CommandId::AlignTraces => (Analyze, "Overlay", 1, LineAlignmentOnly),
+        CommandId::XpsWorkbench(_) => (Analyze, "XPS", 0, Applicability::ToolGroup(ToolGroup::Xps)),
         CommandId::Tool(Tool::ManualPhase) => (Process, "Correct", 0, Always),
         CommandId::SpectrumArithmetic | CommandId::AlignSpectra | CommandId::Craft => {
             (Process, "Transform", 1, Always)

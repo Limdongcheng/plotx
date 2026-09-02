@@ -242,6 +242,7 @@ fn execute_inner(
         }
         // Channel 3 edits, and does so through the property planner.
         CommandId::StepProperty(step) => super::properties::discovery::step_selection(app, step),
+        CommandId::XpsWorkbench(tab) => super::tools::open_xps_workbench(app, tab),
         CommandId::CycleCursor => cycle_cursor(app),
         CommandId::Tool(Tool::Symmetry) => {
             reveal_tool_group(app, Tool::Symmetry, ToolGroup::Nmr2dExperiment);

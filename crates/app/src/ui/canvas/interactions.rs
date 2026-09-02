@@ -656,6 +656,17 @@ pub(crate) fn handle_object_interactions(
     }
 }
 
+/// One catalog-backed row of the canvas context menu, rendered by the shared
+/// menu helper so its label, enabled state, and checkmark can never drift
+/// from the menu bar, the Ribbon, or the palette. The catalog commands act on
+/// the active canvas, which is the canvas this menu belongs to.
+fn command_row(app: &mut PlotxApp, ui: &mut Ui, id: crate::ui::commands::CommandId) {
+    if crate::ui::menus::command_row(app, ui, id, None) {
+        crate::ui::commands::execute_without_clipboard(id, app, ui.ctx());
+        ui.close();
+    }
+}
+
 pub(crate) fn arrange_context_menu(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
     if ui.button("Copy figure").clicked() {
         let ctx = ui.ctx().clone();
@@ -664,57 +675,42 @@ pub(crate) fn arrange_context_menu(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
     }
     frame_zoom_menu(app, ui);
     ui.menu_button("Arrange into grid", |ui| {
-        for &(label, rows, cols) in layout::GRID_PRESETS {
-            if ui.button(label).clicked() {
-                app.arrange_active_canvas_grid(rows, cols);
-                ui.close();
-            }
+        for &(_, rows, cols) in layout::GRID_PRESETS {
+            command_row(
+                app,
+                ui,
+                crate::ui::commands::CommandId::ArrangeGrid(rows, cols),
+            );
         }
     });
-    if ui.button("Simplify inner axes").clicked() {
-        app.simplify_inner_axes();
-        ui.close();
-    }
+    command_row(app, ui, crate::ui::commands::CommandId::SimplifyInnerAxes);
     ui.menu_button("Spacing basis", |ui| {
-        for (label, mode) in [
-            ("Frame", layout::SpacingMode::Frame),
-            ("Visual", layout::SpacingMode::Visual),
-        ] {
-            let checked = app.doc.canvases[ci].layout.spacing_mode == mode;
-            if ui.selectable_label(checked, label).clicked() {
-                app.set_spacing_mode(mode);
-                ui.close();
-            }
+        for mode in [layout::SpacingMode::Frame, layout::SpacingMode::Visual] {
+            command_row(
+                app,
+                ui,
+                crate::ui::commands::CommandId::SetSpacingMode(mode),
+            );
         }
     });
     ui.menu_button("Minimum spacing", |ui| {
         for preset in layout::GutterPreset::ALL {
-            let checked =
-                (app.doc.canvases[ci].layout.gutter_mm - preset.millimetres()).abs() < 0.001;
-            if ui
-                .selectable_label(
-                    checked,
-                    format!("{} ({} mm)", preset.label(), preset.millimetres()),
-                )
-                .clicked()
-            {
-                app.set_gutter_preset(preset);
-                ui.close();
-            }
+            command_row(
+                app,
+                ui,
+                crate::ui::commands::CommandId::SetGutterPreset(preset),
+            );
         }
     });
     if !app.session.ui.selection.objects().is_empty() {
         ui.menu_button("Order", |ui| {
-            for (label, op) in [
-                ("Bring to Front", plotx_core::actions::ZOrder::Front),
-                ("Bring Forward", plotx_core::actions::ZOrder::Forward),
-                ("Send Backward", plotx_core::actions::ZOrder::Backward),
-                ("Send to Back", plotx_core::actions::ZOrder::Back),
+            for op in [
+                plotx_core::actions::ZOrder::Front,
+                plotx_core::actions::ZOrder::Forward,
+                plotx_core::actions::ZOrder::Backward,
+                plotx_core::actions::ZOrder::Back,
             ] {
-                if ui.button(label).clicked() {
-                    app.z_order_selected(op);
-                    ui.close();
-                }
+                command_row(app, ui, crate::ui::commands::CommandId::ZOrder(op));
             }
         });
         let ids: Vec<ObjectId> = app.session.ui.selection.objects().to_vec();
@@ -732,23 +728,14 @@ pub(crate) fn arrange_context_menu(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
         }
     }
     ui.separator();
-    let mut show_grid = app.doc.canvases[ci].layout.show_grid;
-    if ui.checkbox(&mut show_grid, "Show layout grid").clicked() {
-        app.set_show_grid(ci, show_grid);
-    }
-    let mut snap = app.settings.general.snap_enabled;
-    if ui.checkbox(&mut snap, "Snap objects & frames").clicked() {
-        app.set_snap_enabled(snap);
-    }
+    command_row(app, ui, crate::ui::commands::CommandId::ToggleGrid);
+    command_row(app, ui, crate::ui::commands::CommandId::ToggleSnap);
     // Channel 4: whatever the selection draws, its settings are one click from
     // here. Navigation only — the entries jump to the panel section that owns
     // the controls, and are derived from the catalog rather than listed again.
     crate::ui::properties::discovery::context_menu(app, ui);
     ui.separator();
-    if ui.button("Canvas settings…").clicked() {
-        app.session.ui.canvas_settings = Some(ci);
-        ui.close();
-    }
+    command_row(app, ui, crate::ui::commands::CommandId::CanvasSettings);
 }
 
 pub(crate) fn finish_object_drag(app: &mut PlotxApp, ci: usize, drag: ObjectDrag) {

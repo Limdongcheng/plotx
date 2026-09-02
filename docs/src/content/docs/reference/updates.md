@@ -11,7 +11,7 @@ PlotX closes and take effect on the next launch.
 ## Checking and restarting
 
 While an update downloads, its progress appears at the right end of the
-toolbar. Once it is ready, select **Restart to update** to use the new version
+Ribbon's task row. Once it is ready, select **Restart to update** to use the new version
 immediately. PlotX asks about unsaved changes before restarting; canceling
 leaves the app open and does not arm a later restart. If you close normally,
 the update is installed after exit and takes effect next time you open PlotX.
