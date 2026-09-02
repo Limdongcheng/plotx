@@ -652,9 +652,13 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
 #[cfg(test)]
 #[path = "commands_alignment_tests.rs"]
 mod alignment_tests;
+
 #[cfg(test)]
 #[path = "commands_craft_tests.rs"]
 mod craft_tests;
+#[cfg(test)]
+#[path = "commands_identity_tests.rs"]
+mod identity_tests;
 #[cfg(test)]
 #[path = "commands_mass_spec_tests.rs"]
 mod mass_spec_tests;

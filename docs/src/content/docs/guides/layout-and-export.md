@@ -259,11 +259,13 @@ What you control directly:
   **Legend & scales** settings. Drag a categorical legend to place it freely;
   the custom position survives resizing and is used by every export format.
   Double-click a legend or colour scale to restore its automatic placement.
-- **Figure Typography…** on the Figure Ribbon tab sets the text sizes (tick
-  labels, axis titles, the figure title, and legends) for every plot at once,
-  in absolute points — a document-level style, so resizing a panel never
-  changes its type size. These sizes accept 1 to 72 pt. Legends default to
-  7 pt.
+- **Figure typography** in the Figure Ribbon tab's **Style** group opens the
+  document-wide typography section; **Figure Typography…** in the command
+  palette shows the same section in its own window with a **Reset to
+  defaults** button. Either sets the text sizes (tick labels, axis titles, the
+  figure title, and legends) for every plot at once, in absolute points — a
+  document-level style, so resizing a panel never changes its type size.
+  These sizes accept 1 to 72 pt. Legends default to 7 pt.
 - **Figure typography** in the Object inspector holds the same tick-label size
   as **Tick-label size**, plus **Legend size** and **Legend text color**.
   Changing a value in either surface changes the one document-wide value.

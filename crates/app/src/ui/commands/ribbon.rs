@@ -81,9 +81,9 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         ),
         CommandId::NewCanvas(_) => (Figure, "Create", 0, Always),
         CommandId::ChartType => (Figure, "Chart", 0, TableOnly),
-        CommandId::ApplyTheme(_) | CommandId::FigureTypography | CommandId::CanvasSettings => {
-            (Figure, "Style", 1, Always)
-        }
+        // The "Figure typography" property group already puts a typography
+        // tile in Style; the dialog command stays in the menus and palette.
+        CommandId::ApplyTheme(_) | CommandId::CanvasSettings => (Figure, "Style", 1, Always),
         // PNG and SVG cover the two figure endpoints (slides and publication);
         // the other formats stay in the File menu and the palette.
         CommandId::CopyFigure

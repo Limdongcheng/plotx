@@ -15,10 +15,11 @@ pub(crate) fn clickable_tint(visuals: &Visuals) -> Color32 {
     visuals.hyperlink_color
 }
 
-/// A selectable row that reads as clickable while idle: the leading glyph
-/// carries the clickable accent while the label keeps the theme text colour,
-/// mirroring Ribbon buttons. A selected row falls back to the selection
-/// styling wholesale so the accent never fights the checked state.
+/// A selectable row that reads as clickable: the leading glyph carries the
+/// clickable accent while the label keeps the theme text colour, mirroring
+/// Ribbon buttons. The accent stays on a selected row — the selection fill
+/// carries the checked state, and dropping the accent would make the active
+/// row read weaker than an idle one.
 pub(crate) fn selectable_row(
     ui: &mut Ui,
     selected: bool,
@@ -26,11 +27,7 @@ pub(crate) fn selectable_row(
     label: impl Into<String>,
 ) -> Response {
     let font_id = TextStyle::Body.resolve(ui.style());
-    let glyph_color = if selected {
-        Color32::PLACEHOLDER
-    } else {
-        clickable_tint(ui.visuals())
-    };
+    let glyph_color = clickable_tint(ui.visuals());
     let mut job = LayoutJob::default();
     job.append(
         glyph,

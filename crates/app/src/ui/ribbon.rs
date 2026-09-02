@@ -366,8 +366,15 @@ fn ribbon_group(
                 } else {
                     2.0
                 };
-                for command in entries {
-                    ribbon_button(app, clipboard, ui, command, density, tile, measure);
+                for run in layout::group_runs(&entries) {
+                    match run {
+                        layout::Run::Single(command) => {
+                            ribbon_button(app, clipboard, ui, command, density, tile, measure);
+                        }
+                        layout::Run::Segmented(family) => {
+                            buttons::segmented_run(app, clipboard, ui, &family, measure);
+                        }
+                    }
                 }
             });
             ui.add_space(1.0);
