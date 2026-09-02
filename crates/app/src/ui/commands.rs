@@ -127,6 +127,9 @@ pub enum CommandId {
     /// Move the canvas-steppable property one rung (§8.5 channel 3). The
     /// property is derived from the catalog, so the binding does not name one.
     StepProperty(PropertyStep),
+    /// Open the XPS workbench in the right sidebar on one of its pages.
+    /// Navigation only: the workbench owns the controls.
+    XpsWorkbench(plotx_core::state::XpsWorkbenchTab),
     CycleCursor,
     Tool(Tool),
 }
@@ -497,6 +500,10 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
                 )
             })
         }
+        CommandId::XpsWorkbench(_) => requires(
+            dataset().is_some_and(|dataset| dataset.as_xps().is_some()),
+            "Open an XPS dataset before using the XPS workbench.",
+        ),
         CommandId::Statistics => requires(
             is_table(),
             "Select a data table before calculating statistics.",

@@ -252,6 +252,23 @@ fn command_item_labeled(
     id: CommandId,
     label_override: Option<&str>,
 ) {
+    if command_row(app, ui, id, label_override) {
+        commands::execute(id, app, clipboard, ui.ctx());
+        ui.close();
+    }
+}
+
+/// Renders one catalog command as a menu row and reports a click. Label,
+/// enabled state, checkmark, shortcut, and the unblock reason all come from
+/// `describe`, so every menu surface (the in-window bar, the canvas context
+/// menu) shows the same state as the Ribbon and the palette. The caller
+/// executes, because the surfaces differ in whether they hold the clipboard.
+pub(crate) fn command_row(
+    app: &PlotxApp,
+    ui: &mut Ui,
+    id: CommandId,
+    label_override: Option<&str>,
+) -> bool {
     let command = commands::describe(app, id);
     let label = label_override.unwrap_or(command.label.as_str());
     let mut button = egui::Button::new(label).selected(command.checked == Some(true));
@@ -265,10 +282,7 @@ fn command_item_labeled(
     {
         response.on_disabled_hover_text(reason);
     }
-    if clicked {
-        commands::execute(id, app, clipboard, ui.ctx());
-        ui.close();
-    }
+    clicked
 }
 
 pub(crate) fn about_window(app: &mut PlotxApp, ctx: &egui::Context) {

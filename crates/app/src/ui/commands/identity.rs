@@ -28,6 +28,7 @@ impl CommandId {
             Self::PropertyGroup(section) => format!("properties.group.{section}"),
             Self::StepProperty(step) => format!("properties.step.{}", step.as_str()),
             Self::Tool(tool) => format!("tool.{}", tool_slug(tool)),
+            Self::XpsWorkbench(tab) => format!("xps.workbench.{}", xps_workbench_slug(tab)),
             Self::SetPanelLayout(layout) => {
                 format!("panel.layout.{}", panel_layout_slug(layout))
             }
@@ -312,6 +313,23 @@ pub(super) fn command_identity(
                 PropertyStep::Lower => (format!("Lower {setting}"), Some(icon::MINUS), None),
             }
         }
+        CommandId::XpsWorkbench(tab) => {
+            use plotx_core::state::XpsWorkbenchTab;
+            let (label, glyph) = match tab {
+                XpsWorkbenchTab::Acquisition => ("XPS Acquisition", icon::INFO),
+                XpsWorkbenchTab::Background => ("XPS Background", icon::CHART_LINE_DOWN),
+                XpsWorkbenchTab::Components => ("XPS Components", icon::PUZZLE_PIECE),
+                XpsWorkbenchTab::Diagnostics => ("XPS Diagnostics", icon::GAUGE),
+            };
+            (
+                label.to_owned(),
+                Some(glyph),
+                Some(
+                    app.session.ui.xps_workbench_tab == tab
+                        && app.session.secondary_sidebar_visible,
+                ),
+            )
+        }
         CommandId::CycleCursor => plain("Next Cursor", Some(icon::CROSSHAIR)),
         CommandId::Tool(tool) => (
             format!("Tool: {}", tool.label()),
@@ -581,6 +599,16 @@ fn zorder_slug(mode: ZOrder) -> &'static str {
         ZOrder::Back => "back",
     }
 }
+fn xps_workbench_slug(tab: plotx_core::state::XpsWorkbenchTab) -> &'static str {
+    use plotx_core::state::XpsWorkbenchTab;
+    match tab {
+        XpsWorkbenchTab::Acquisition => "acquisition",
+        XpsWorkbenchTab::Background => "background",
+        XpsWorkbenchTab::Components => "components",
+        XpsWorkbenchTab::Diagnostics => "diagnostics",
+    }
+}
+
 fn tool_slug(tool: Tool) -> &'static str {
     match tool {
         Tool::Select => "select",

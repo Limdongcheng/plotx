@@ -5,7 +5,7 @@ description: Export publication-quality graphics and the numbers behind them.
 
 ## Export a figure
 
-Export via the toolbar's export menu — the scope is the current page, all
+Export from the **Figure** tab's **Output** group or the **File** menu — the scope is the current page, all
 pages, or a page range.
 
 | Format | Use |

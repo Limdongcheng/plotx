@@ -9,7 +9,7 @@ meetings and quick reviews without exporting slides.
 
 ## Start presenting
 
-Choose **Present Full Screen** from the toolbar or the command palette
+Choose **Present Full Screen** from the **View** tab or the command palette
 (<kbd>Ctrl</kbd>+<kbd>K</kbd>). Presenting starts from the page you are
 currently on. If nothing is open yet, PlotX tells you there is nothing to
 present.

@@ -90,6 +90,7 @@ export default defineConfig({
 						{ slug: 'reference/shortcuts' },
 						{ slug: 'reference/command-palette' },
 						{ slug: 'reference/ui-overview' },
+						{ slug: 'reference/ribbon' },
 						{ slug: 'reference/preferences' },
 						{ slug: 'reference/file-formats' },
 						{ slug: 'reference/updates' },

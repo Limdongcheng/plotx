@@ -18,13 +18,15 @@ introduces the same regions in walkthrough form.
   that exports as one figure. Drag a page or table-sheet header to place it;
   near another frame, it snaps to that frame's edges and the standard gap.
   Hold <kbd>Alt</kbd> while dragging to bypass snapping.
-- **Secondary Side Bar** — the right panel, holding the Object inspector and
-  contextual analysis tools for the selection. It scrolls as one column, so a
-  long inspector never pushes the tools below it out of reach. Processing is
-  not here; it lives on the canvas.
+- **Secondary Side Bar** — the right panel, holding the Object inspector and,
+  under the **Dataset tools** heading, the contextual analysis workbenches for
+  the selection (XPS, mass spectrometry, patch clamp, and the per-technique
+  tool panels). It scrolls as one column, so a long inspector never pushes the
+  tools below it out of reach. Processing is not here; it lives on the canvas.
 - **Task dock** — the card at the upper right of the canvas that holds the
-  multi-step tasks: Processing, Regions, Curve Fit, and Statistics. When two or
-  more are open it grows tabs — **Process**, **Regions**, **Fit**, **Stats** —
+  multi-step tasks: Processing, Regions, Curve Fit, Statistics, and CRAFT.
+  When two or more are open it grows tabs — **Process**, **Regions**, **Fit**,
+  **Stats**, **CRAFT** —
   and shows one page at a time. Its Processing page lists one pipeline for a 1D
   or pseudo-2D dataset and two, **F2 (direct)** then **F1 (indirect)**, for a
   true 2D spectrum. See [Processing](/guides/processing/).
@@ -32,6 +34,7 @@ introduces the same regions in walkthrough form.
   **Process**, **Analyze**, **Figure**, **Arrange**, **View**). On macOS its
   task row also holds the native window controls and project name. It is a
   shortcut surface: everything on it is also in the menus or command palette.
+  See [the Ribbon](/reference/ribbon/) for every tab's groups.
 - **Status bar** — the bottom strip, showing hints, progress, and selection
   details.
 

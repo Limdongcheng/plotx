@@ -1,0 +1,47 @@
+---
+title: Ribbon
+description: Ribbon 的全部页签与分组，以及它如何随窗口宽度自适应。
+---
+
+Ribbon 是画布上方的命令条，按流水线组织任务页签：**Data → Process →
+Analyze → Figure → Arrange**，**View** 排在最后。它是快捷入口——其上的一切
+也都能在菜单或命令面板中找到——因此本页列出的是屏幕上可见的词汇，而非每条
+命令。
+
+悬停任意 Ribbon 按钮会显示完整命令名及其快捷键。灰色按钮会在同一提示中
+说明先做什么它才可用。
+
+## 页签与分组
+
+- **Data**——**Import**（打开文件、文件夹、表格与图片）、**Build**（新建
+  表格、堆叠）、**Export**（数据导出）。
+- **Process**——**Processing**（处理管线各步骤：切趾、补零、相位、基线、
+  参考等）、**Correct**（交互式手动相位工具）、**Transform**（谱运算、谱
+  对齐、CRAFT）、**Recipes**（处理模板）。
+- **Analyze**——**Range**（所有拟合读取的分析范围），然后是当前数据集支持
+  的分组：**XPS**（XPS 工作台各页）、**Extract**（质谱提取）、**Regions**、
+  **Peaks**、**Review**（2D 对称性）、**Overlay**（迹线对齐）、**Peak
+  Fit**、**Curve Fit**、**Statistics** 与 **Interpret**（积分与多重峰）。
+- **Figure**——**Create**（画布预设）、**Chart**、**Data**、**Style**、
+  **Canvas**、**Output**（复制与导出）。
+- **Arrange**——**Layout**、**Align**、**Distribute**、**Order**、
+  **Guides**、**Annotate**、**Object**、**Canvas**。
+- **View**——**Navigate**（缩放与适配）、**Display**（侧栏、布局网格、
+  演示模式、偏好设置）。
+
+整组主题与当前数据集类型无关的分组会隐藏；暂时不可用的命令保持可见并置灰，
+悬停可见原因。
+
+## 宽度行为
+
+Ribbon 以活动页签的内容对照窗口宽度实测：
+
+- 全部放得下时，按钮渲染为图标在上、标签在下的图块。
+- 放不下时，按钮降为紧凑行，标签仍保留在图标旁；低优先级分组整体移入
+  **More** 菜单。
+- 命令区不会自行隐藏。**Collapse ribbon**（任务行右端的箭头）负责收起与
+  展开。
+
+互斥选项（如 **Arrange** 页签的间距基准与最小间距）渲染为单选分段控件。
+启动计算的按钮（如 **Run Peak Fit**）使用强调色填充样式——与任务卡片的
+Run 按钮一致。

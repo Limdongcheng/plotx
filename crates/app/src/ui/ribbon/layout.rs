@@ -235,11 +235,12 @@ pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
         WorkflowTab::Process => &["Processing", "Correct", "Transform", "Recipes"],
         WorkflowTab::Analyze => &[
             "Range",
+            "XPS",
             "Extract",
             "Regions",
             "Peaks",
             "Review",
-            "Align",
+            "Overlay",
             "Peak Fit",
             "Curve Fit",
             "Statistics",
