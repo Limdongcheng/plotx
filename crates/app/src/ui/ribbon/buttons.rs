@@ -113,7 +113,7 @@ pub(super) fn ribbon_button(
             let button = paint.frame(
                 Button::selectable(
                     selected,
-                    RichText::new(icon).size(14.0).color(paint.icon_color),
+                    RichText::new(icon).size(13.0).color(paint.icon_color),
                 ),
                 primary,
             );
@@ -125,11 +125,13 @@ pub(super) fn ribbon_button(
         (GroupScale::Medium | GroupScale::Small | GroupScale::Collapsed, icon) => {
             let mut job = LayoutJob::default();
             if let Some(icon) = icon {
+                // The glyph matches the 12 pt label so a row stays within
+                // its 22 px stack slot.
                 job.append(
                     icon,
                     0.0,
                     TextFormat {
-                        font_id: FontId::proportional(14.0),
+                        font_id: FontId::proportional(12.0),
                         color: paint.icon_color,
                         ..Default::default()
                     },
@@ -314,7 +316,9 @@ pub(super) fn segmented_run(
     measure: Measure,
     height: f32,
 ) {
-    ui.scope(|ui| {
+    // Segments sit side by side whatever layout hosts the run: at Large the
+    // group row, at Medium and Small a stacked column.
+    ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 1.0;
         for command in entries {
             let selected = command.checked == Some(true);

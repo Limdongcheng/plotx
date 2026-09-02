@@ -350,43 +350,67 @@ fn ribbon_group(
     }
     let width = layout::group_width(title, &entries, scale, measure);
     let columns = layout::columns(&entries, scale, measure);
-    ui.allocate_ui_with_layout(
-        Vec2::new(width, TILE_HEIGHT + 16.0),
-        egui::Layout::top_down(egui::Align::Center),
-        |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = layout::column_spacing(scale);
-                for column in columns {
-                    // A column is one Large run, or a stack of up to two
-                    // Medium/Small runs painted to the column's shared width.
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = STACK_GAP;
-                        for run in column.cells {
-                            match run {
-                                layout::Run::Single(command) => {
-                                    ribbon_button(app, clipboard, ui, command, scale, column.width);
-                                }
-                                layout::Run::Segmented(family) => {
-                                    let height = if scale == GroupScale::Large {
-                                        ROW_HEIGHT
-                                    } else {
-                                        STACK_ROW_HEIGHT
-                                    };
-                                    buttons::segmented_run(
-                                        app, clipboard, ui, &family, measure, height,
-                                    );
-                                }
-                            }
-                        }
-                    });
+    let spacing = layout::column_spacing(scale);
+    let content_width = columns.iter().map(|column| column.width).sum::<f32>()
+        + spacing * columns.len().saturating_sub(1) as f32;
+    // The group's rect comes straight from the measured plan, and every
+    // column is placed at its planned offset inside it, so the pixels and
+    // the width budget agree by construction: content can never grow the
+    // group, and a stack of two rows never grows the row.
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + 16.0), Sense::hover());
+    let mut x = rect.left() + ((width - content_width) / 2.0).max(0.0);
+    for column in columns {
+        let column_rect = egui::Rect::from_min_size(
+            egui::pos2(x, rect.top()),
+            Vec2::new(column.width, TILE_HEIGHT),
+        );
+        let mut column_ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(column_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        column_ui.spacing_mut().item_spacing.y = STACK_GAP;
+        // Two stacked rows must fit the tile height: 2 × 22 + 2. The default
+        // vertical padding would push a 12 pt row past 22.
+        column_ui.spacing_mut().button_padding.y = 2.0;
+        for run in column.cells {
+            match run {
+                layout::Run::Single(command) => {
+                    ribbon_button(app, clipboard, &mut column_ui, command, scale, column.width);
                 }
-            });
-            ui.add_space(1.0);
-            ui.add(
-                Label::new(crate::typography::caption(title).color(ui.visuals().weak_text_color()))
-                    .wrap_mode(TextWrapMode::Extend),
-            );
-        },
+                layout::Run::Segmented(family) => {
+                    let height = if scale == GroupScale::Large {
+                        // Centre the shorter control on the tile row.
+                        column_ui.add_space((TILE_HEIGHT - ROW_HEIGHT) / 2.0);
+                        ROW_HEIGHT
+                    } else {
+                        STACK_ROW_HEIGHT
+                    };
+                    buttons::segmented_run(
+                        app,
+                        clipboard,
+                        &mut column_ui,
+                        &family,
+                        measure,
+                        height,
+                    );
+                }
+            }
+        }
+        x += column.width + spacing;
+    }
+    let caption_rect = egui::Rect::from_min_size(
+        egui::pos2(rect.left(), rect.top() + TILE_HEIGHT + 1.0),
+        Vec2::new(width, rect.height() - TILE_HEIGHT - 1.0),
+    );
+    ui.new_child(
+        UiBuilder::new()
+            .max_rect(caption_rect)
+            .layout(Layout::top_down(Align::Center)),
+    )
+    .add(
+        Label::new(crate::typography::caption(title).color(ui.visuals().weak_text_color()))
+            .wrap_mode(TextWrapMode::Extend),
     );
 }
 
@@ -405,26 +429,29 @@ fn collapsed_group(
     let icon = entries.iter().find_map(|command| command.icon);
     let popup_id = ui.id().with(("collapsed_group", title));
     let open = egui::Popup::is_id_open(ui.ctx(), popup_id);
-    ui.allocate_ui_with_layout(
-        Vec2::new(width, TILE_HEIGHT + 16.0),
-        egui::Layout::top_down(egui::Align::Center),
-        |ui| {
-            let response = collapsed_tile(ui, title, icon, width, open);
-            egui::Popup::menu(&response).id(popup_id).show(|ui| {
-                ui.horizontal(|ui| {
-                    ribbon_group(
-                        app,
-                        clipboard,
-                        ui,
-                        title,
-                        entries,
-                        GroupScale::Large,
-                        measure,
-                    );
-                });
-            });
-        },
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, TILE_HEIGHT + 16.0), Sense::hover());
+    let mut tile_ui = ui.new_child(
+        UiBuilder::new()
+            .max_rect(egui::Rect::from_min_size(
+                rect.min,
+                Vec2::new(width, TILE_HEIGHT),
+            ))
+            .layout(Layout::top_down(Align::Min)),
     );
+    let response = collapsed_tile(&mut tile_ui, title, icon, width, open);
+    egui::Popup::menu(&response).id(popup_id).show(|ui| {
+        ui.horizontal(|ui| {
+            ribbon_group(
+                app,
+                clipboard,
+                ui,
+                title,
+                entries,
+                GroupScale::Large,
+                measure,
+            );
+        });
+    });
 }
 
 fn update_button(app: &mut PlotxApp, ui: &mut Ui, compact: bool) {
