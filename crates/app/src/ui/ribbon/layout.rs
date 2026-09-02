@@ -6,7 +6,7 @@
 use egui::FontId;
 use plotx_core::state::WorkflowTab;
 
-use super::super::commands::CommandDescriptor;
+use super::super::commands::{CommandDescriptor, CommandId};
 use super::RibbonDensity;
 use super::buttons::short_label;
 
@@ -75,27 +75,90 @@ pub(super) fn group_width(
     density: RibbonDensity,
     measure: Measure,
 ) -> f32 {
-    let spacing = 4.0 * entries.len().saturating_sub(1) as f32;
-    let commands = if density == RibbonDensity::Full {
-        tile_width(entries, measure) * entries.len() as f32 + spacing
-    } else {
-        entries
-            .iter()
-            .map(|command| button_width(command, measure))
-            .sum::<f32>()
-            + spacing
-    };
+    let runs = group_runs(entries);
+    let tile = tile_width(entries, measure);
+    let spacing = 4.0 * runs.len().saturating_sub(1) as f32;
+    let commands = runs
+        .iter()
+        .map(|run| match run {
+            Run::Single(command) => {
+                if density == RibbonDensity::Full {
+                    tile
+                } else {
+                    button_width(command, measure)
+                }
+            }
+            Run::Segmented(family) => segmented_width(family, measure),
+        })
+        .sum::<f32>()
+        + spacing;
     commands.max(measure(title, crate::typography::caption_font()) + 8.0)
 }
 
 /// All tiles in a group share the width of the widest short label, so a group
-/// reads as one row of even targets instead of a ragged strip.
+/// reads as one row of even targets instead of a ragged strip. Segmented
+/// families size themselves and stay out of the fold.
 pub(super) fn tile_width(entries: &[&CommandDescriptor], measure: Measure) -> f32 {
     entries
         .iter()
+        .filter(|command| segmented_family(command.id).is_none())
         .map(|command| measure(&short_label(command), crate::typography::subheadline_font()) + 18.0)
         .fold(58.0, f32::max)
         .min(112.0)
+}
+
+/// Mutually exclusive command families that render as one segmented control
+/// instead of a row of look-alike buttons.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SegmentedFamily {
+    Spacing,
+    Gutter,
+}
+
+pub(super) fn segmented_family(id: CommandId) -> Option<SegmentedFamily> {
+    match id {
+        CommandId::SetSpacingMode(_) => Some(SegmentedFamily::Spacing),
+        CommandId::SetGutterPreset(_) => Some(SegmentedFamily::Gutter),
+        _ => None,
+    }
+}
+
+/// A group's render plan: standalone commands, with each consecutive
+/// mutually exclusive family collapsed into one segmented run.
+pub(super) enum Run<'a> {
+    Single(&'a CommandDescriptor),
+    Segmented(Vec<&'a CommandDescriptor>),
+}
+
+pub(super) fn group_runs<'a>(entries: &[&'a CommandDescriptor]) -> Vec<Run<'a>> {
+    let mut runs: Vec<Run<'a>> = Vec::new();
+    for &command in entries {
+        let family = segmented_family(command.id);
+        match (family, runs.last_mut()) {
+            (Some(family), Some(Run::Segmented(run)))
+                if run
+                    .first()
+                    .is_some_and(|first| segmented_family(first.id) == Some(family)) =>
+            {
+                run.push(command);
+            }
+            (Some(_), _) => runs.push(Run::Segmented(vec![command])),
+            (None, _) => runs.push(Run::Single(command)),
+        }
+    }
+    runs
+}
+
+pub(super) fn segment_width(command: &CommandDescriptor, measure: Measure) -> f32 {
+    measure(&short_label(command), crate::typography::callout_font()) + 14.0
+}
+
+fn segmented_width(family: &[&CommandDescriptor], measure: Measure) -> f32 {
+    family
+        .iter()
+        .map(|command| segment_width(command, measure))
+        .sum::<f32>()
+        + family.len().saturating_sub(1) as f32
 }
 
 pub(super) fn button_width(command: &CommandDescriptor, measure: Measure) -> f32 {

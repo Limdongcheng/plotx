@@ -92,7 +92,7 @@ pub(crate) const GROUPS: &[PropertyGroup] = &[
     PropertyGroup {
         section: panel::CONTOUR_SECTION,
         label: LocalizedText("Contour"),
-        icon: egui_phosphor::regular::CHART_POLAR,
+        icon: egui_phosphor::regular::FINGERPRINT,
         ribbon: RibbonSpot {
             tab: WorkflowTab::Figure,
             group: "Style",
@@ -125,7 +125,7 @@ pub(crate) const GROUPS: &[PropertyGroup] = &[
     PropertyGroup {
         section: panel::TYPOGRAPHY_SECTION,
         label: LocalizedText("Figure typography"),
-        icon: egui_phosphor::regular::TEXT_T,
+        icon: egui_phosphor::regular::TEXT_AA,
         ribbon: RibbonSpot {
             tab: WorkflowTab::Figure,
             group: "Style",
