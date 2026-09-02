@@ -1,7 +1,7 @@
-//! Width mathematics for the Ribbon: density selection, group measurement,
-//! ordering, and the overflow partition. All text is sized through an injected
-//! [`Measure`] so the same arithmetic runs under the live font system and in
-//! headless tests.
+//! Width mathematics for the Ribbon: per-group scale selection, group
+//! measurement, ordering, and the last-resort overflow partition. All text is
+//! sized through an injected [`Measure`] so the same arithmetic runs under the
+//! live font system and in headless tests.
 
 use egui::FontId;
 use plotx_core::state::WorkflowTab;
@@ -10,9 +10,13 @@ use super::super::commands::{CommandDescriptor, CommandId};
 use super::RibbonDensity;
 use super::buttons::short_label;
 
-/// One shared tile height (Full density) and row height (Compact) keeps every
-/// command in a group visually equal-sized.
+/// Every group is one tile high at every scale: Large tiles, and two stacked
+/// rows of [`STACK_ROW_HEIGHT`] with a [`STACK_GAP`] between them, share the
+/// same height, so scaling a group never moves its neighbours vertically.
 pub(super) const TILE_HEIGHT: f32 = 46.0;
+pub(super) const STACK_ROW_HEIGHT: f32 = 22.0;
+pub(super) const STACK_GAP: f32 = 2.0;
+/// Height of a segmented control sitting beside Large tiles.
 pub(super) const ROW_HEIGHT: f32 = 26.0;
 
 /// Returns the width of `text` in `font`. Layout decisions and painting must
@@ -35,66 +39,236 @@ pub(super) fn text_measure(ctx: egui::Context) -> impl Fn(&str, FontId) -> f32 {
     }
 }
 
-/// The richest density whose content actually fits `width`: full icon-and-text
-/// tiles whenever the active tab's groups all fit, otherwise the compact
-/// labelled row, whose own overflow moves whole groups into More.
-pub(super) fn density(
-    width: f32,
-    expanded: bool,
-    groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
-    measure: Measure,
-) -> RibbonDensity {
-    if !expanded {
-        RibbonDensity::Collapsed
-    } else if required_width(groups, RibbonDensity::Full, measure) <= width {
-        RibbonDensity::Full
-    } else {
-        // Narrow widths stay Compact: overflow moves whole groups into More,
-        // and in the extreme the row degrades to the More menu alone. Only a
-        // deliberate collapse hides the command area — a window resize never
-        // takes every command away.
-        RibbonDensity::Compact
+/// How much room one group takes, from the richest rendering down. Groups
+/// step down this ladder one at a time as the window narrows, so a narrow
+/// Ribbon keeps every group in its place instead of moving commands into a
+/// menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum GroupScale {
+    /// Icon-over-label tiles in one row.
+    Large,
+    /// Icon-beside-label rows, two per column.
+    Medium,
+    /// Icon-only squares, two per column; commands without an icon keep
+    /// their Medium row so they never become unlabelled.
+    Small,
+    /// One tile carrying the group's icon and title; the group's Large
+    /// layout opens from it.
+    Collapsed,
+}
+
+impl GroupScale {
+    pub(super) const ALL: [Self; 4] = [Self::Large, Self::Medium, Self::Small, Self::Collapsed];
+
+    fn index(self) -> usize {
+        self as usize
     }
 }
 
-/// Width the whole tab needs at `density`: every group plus its separator.
-/// The same measurement drives the density choice and the overflow budget, so
-/// a tab shown Full is guaranteed to fit without a More menu.
-pub(super) fn required_width(
-    groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
-    density: RibbonDensity,
-    measure: Measure,
-) -> f32 {
-    groups
-        .iter()
-        .map(|(title, _, entries)| group_width(title, entries, density, measure) + 8.0)
-        .sum()
+/// The task row's density summary, derived from the plan: `Full` when every
+/// group sits at Large, `Scaled` once any group has stepped down or overflowed.
+pub(super) fn density(expanded: bool, plan: &TabPlan) -> RibbonDensity {
+    if !expanded {
+        RibbonDensity::Collapsed
+    } else if plan.is_full() {
+        RibbonDensity::Full
+    } else {
+        RibbonDensity::Scaled
+    }
 }
 
+/// The scale of every group of a tab, plus which groups still fit on the
+/// Ribbon at that scale. `shown` only carries `false` once every group is
+/// Collapsed and the row still does not fit: the More menu is the floor,
+/// never the first resort.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TabPlan {
+    pub(super) scales: Vec<GroupScale>,
+    pub(super) shown: Vec<bool>,
+}
+
+impl TabPlan {
+    fn is_full(&self) -> bool {
+        self.scales.iter().all(|&scale| scale == GroupScale::Large)
+            && self.shown.iter().all(|&shown| shown)
+    }
+}
+
+/// Chooses each group's scale so the tab fits `budget`. Groups step down
+/// one level at a time, lowest priority first (rightmost first among equals),
+/// and the whole row is retried after every step, so the visible set is
+/// always the richest one that fits. The invariant: a higher-priority group
+/// is never asked to shrink further than a lower-priority one. A level that
+/// would not make a group narrower is skipped for that group (a one-command
+/// group's Medium row can be wider than its Large tile), which keeps every
+/// step a genuine reduction. When even all-Collapsed overflows, the More
+/// menu absorbs whole groups behind a reserved `more_width`, via the same
+/// priority rule as before.
+pub(super) fn plan(
+    priorities: &[u8],
+    widths: &[[f32; 4]],
+    budget: f32,
+    more_width: f32,
+) -> TabPlan {
+    debug_assert_eq!(priorities.len(), widths.len());
+    let count = priorities.len();
+    let mut scales = vec![GroupScale::Large; count];
+    let total = |scales: &[GroupScale]| -> f32 {
+        scales
+            .iter()
+            .enumerate()
+            .map(|(index, scale)| widths[index][scale.index()])
+            .sum()
+    };
+    if total(&scales) <= budget {
+        return TabPlan {
+            scales,
+            shown: vec![true; count],
+        };
+    }
+    let mut order: Vec<usize> = (0..count).collect();
+    order.sort_by_key(|&index| {
+        (
+            std::cmp::Reverse(priorities[index]),
+            std::cmp::Reverse(index),
+        )
+    });
+    for level in [GroupScale::Medium, GroupScale::Small, GroupScale::Collapsed] {
+        for &index in &order {
+            scales[index] = narrowest_up_to(&widths[index], level);
+            if total(&scales) <= budget {
+                return TabPlan {
+                    scales,
+                    shown: vec![true; count],
+                };
+            }
+        }
+    }
+    let collapsed: Vec<f32> = widths
+        .iter()
+        .map(|width| width[GroupScale::Collapsed.index()])
+        .collect();
+    let shown = shown_groups(priorities, &collapsed, (budget - more_width).max(0.0));
+    TabPlan { scales, shown }
+}
+
+/// The scale at or above `level` with the smallest width, preferring the
+/// richer scale on ties so a step that saves nothing is not taken.
+fn narrowest_up_to(widths: &[f32; 4], level: GroupScale) -> GroupScale {
+    let mut best = GroupScale::Large;
+    for scale in GroupScale::ALL {
+        if scale > level {
+            break;
+        }
+        if widths[scale.index()] < widths[best.index()] {
+            best = scale;
+        }
+    }
+    best
+}
+
+/// Which groups stay on the Ribbon within `budget`. Admission runs in
+/// priority order; when a group does not fit, its peers at the same priority
+/// may still take the remaining space, but nothing of lower priority can
+/// leapfrog it. The invariant: a group in the More menu never outranks a
+/// group that stayed visible (equal rank may split, so one oversized group
+/// cannot dam every smaller peer behind it).
+pub(super) fn shown_groups(priorities: &[u8], widths: &[f32], budget: f32) -> Vec<bool> {
+    debug_assert_eq!(priorities.len(), widths.len());
+    let mut ranked: Vec<usize> = (0..priorities.len()).collect();
+    ranked.sort_by_key(|&index| priorities[index]);
+    let mut shown = vec![false; priorities.len()];
+    let mut used = 0.0;
+    let mut blocked_at: Option<u8> = None;
+    for index in ranked {
+        if blocked_at.is_some_and(|blocked| priorities[index] > blocked) {
+            break;
+        }
+        if used + widths[index] > budget {
+            blocked_at.get_or_insert(priorities[index]);
+            continue;
+        }
+        shown[index] = true;
+        used += widths[index];
+    }
+    shown
+}
+
+/// Width of one group at `scale`, including the caption below it.
 pub(super) fn group_width(
     title: &str,
     entries: &[&CommandDescriptor],
-    density: RibbonDensity,
+    scale: GroupScale,
     measure: Measure,
 ) -> f32 {
+    let commands = if scale == GroupScale::Collapsed {
+        collapsed_width(title, measure)
+    } else {
+        let columns = columns(entries, scale, measure);
+        columns.iter().map(|column| column.width).sum::<f32>()
+            + column_spacing(scale) * columns.len().saturating_sub(1) as f32
+    };
+    commands.max(measure(title, crate::typography::caption_font()) + 8.0)
+}
+
+pub(super) fn column_spacing(scale: GroupScale) -> f32 {
+    if scale == GroupScale::Large { 4.0 } else { 2.0 }
+}
+
+/// A Collapsed group is one tile wide enough for its title and the caret.
+pub(super) fn collapsed_width(title: &str, measure: Measure) -> f32 {
+    (measure(
+        &collapsed_label(title),
+        crate::typography::subheadline_font(),
+    ) + 18.0)
+        .clamp(58.0, 112.0)
+}
+
+pub(super) fn collapsed_label(title: &str) -> String {
+    format!("{title} {}", egui_phosphor::regular::CARET_DOWN)
+}
+
+/// One column of a group's render plan: a single run at Large, or up to two
+/// stacked runs at Medium and Small, all painted `width` wide so a column
+/// reads as one even stack.
+pub(super) struct Column<'a> {
+    pub(super) cells: Vec<Run<'a>>,
+    pub(super) width: f32,
+}
+
+/// The column plan of a group at a non-Collapsed `scale`. Measurement and
+/// painting both read it, so the width budget and the pixels cannot drift.
+pub(super) fn columns<'a>(
+    entries: &[&'a CommandDescriptor],
+    scale: GroupScale,
+    measure: Measure,
+) -> Vec<Column<'a>> {
     let runs = group_runs(entries);
     let tile = tile_width(entries, measure);
-    let spacing = 4.0 * runs.len().saturating_sub(1) as f32;
-    let commands = runs
-        .iter()
-        .map(|run| match run {
-            Run::Single(command) => {
-                if density == RibbonDensity::Full {
-                    tile
-                } else {
-                    button_width(command, measure)
-                }
+    let cell_width = |run: &Run<'a>| match run {
+        Run::Single(command) => match scale {
+            GroupScale::Large => tile,
+            GroupScale::Medium => medium_width(command, measure),
+            GroupScale::Small | GroupScale::Collapsed => small_width(command, measure),
+        },
+        Run::Segmented(family) => segmented_width(family, measure),
+    };
+    let per_column = if scale == GroupScale::Large { 1 } else { 2 };
+    let mut columns: Vec<Column<'a>> = Vec::new();
+    for run in runs {
+        let width = cell_width(&run);
+        match columns.last_mut() {
+            Some(column) if column.cells.len() < per_column => {
+                column.cells.push(run);
+                column.width = column.width.max(width);
             }
-            Run::Segmented(family) => segmented_width(family, measure),
-        })
-        .sum::<f32>()
-        + spacing;
-    commands.max(measure(title, crate::typography::caption_font()) + 8.0)
+            _ => columns.push(Column {
+                cells: vec![run],
+                width,
+            }),
+        }
+    }
+    columns
 }
 
 /// All tiles in a group share the width of the widest short label, so a group
@@ -107,6 +281,27 @@ pub(super) fn tile_width(entries: &[&CommandDescriptor], measure: Measure) -> f3
         .map(|command| measure(&short_label(command), crate::typography::subheadline_font()) + 18.0)
         .fold(58.0, f32::max)
         .min(112.0)
+}
+
+/// A Medium row: the glyph, a two-space gap, and the short label.
+pub(super) fn medium_width(command: &CommandDescriptor, measure: Measure) -> f32 {
+    let label = measure(&short_label(command), crate::typography::callout_font());
+    let content = if command.icon.is_some() {
+        label + 24.0
+    } else {
+        label
+    };
+    (content + 16.0).clamp(40.0, 180.0)
+}
+
+/// A Small cell: an icon square, or the Medium row when the command has no
+/// icon to stand in for its label.
+pub(super) fn small_width(command: &CommandDescriptor, measure: Measure) -> f32 {
+    if command.icon.is_some() {
+        STACK_ROW_HEIGHT
+    } else {
+        medium_width(command, measure)
+    }
 }
 
 /// Mutually exclusive command families that render as one segmented control
@@ -161,44 +356,6 @@ fn segmented_width(family: &[&CommandDescriptor], measure: Measure) -> f32 {
         .map(|command| segment_width(command, measure))
         .sum::<f32>()
         + family.len().saturating_sub(1) as f32
-}
-
-pub(super) fn button_width(command: &CommandDescriptor, measure: Measure) -> f32 {
-    let label = measure(&short_label(command), crate::typography::callout_font());
-    // The glyph and its two-space gap ride ahead of an icon-bearing label.
-    let content = if command.icon.is_some() {
-        label + 24.0
-    } else {
-        label
-    };
-    (content + 16.0).clamp(40.0, 180.0)
-}
-
-/// Which groups stay on the Ribbon within `budget`. Admission runs in
-/// priority order; when a group does not fit, its peers at the same priority
-/// may still take the remaining space, but nothing of lower priority can
-/// leapfrog it. The invariant: a group in the More menu never outranks a
-/// group that stayed visible (equal rank may split, so one oversized group
-/// cannot dam every smaller peer behind it).
-pub(super) fn shown_groups(priorities: &[u8], widths: &[f32], budget: f32) -> Vec<bool> {
-    debug_assert_eq!(priorities.len(), widths.len());
-    let mut ranked: Vec<usize> = (0..priorities.len()).collect();
-    ranked.sort_by_key(|&index| priorities[index]);
-    let mut shown = vec![false; priorities.len()];
-    let mut used = 0.0;
-    let mut blocked_at: Option<u8> = None;
-    for index in ranked {
-        if blocked_at.is_some_and(|blocked| priorities[index] > blocked) {
-            break;
-        }
-        if used + widths[index] > budget {
-            blocked_at.get_or_insert(priorities[index]);
-            continue;
-        }
-        shown[index] = true;
-        used += widths[index];
-    }
-    shown
 }
 
 pub(super) fn groups_for_tab(
@@ -266,82 +423,5 @@ pub(super) fn group_order(tab: WorkflowTab, group: &str) -> u8 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::super::super::commands;
-    use super::*;
-    use plotx_core::state::PlotxApp;
-
-    /// Deterministic stand-in for the live font system: proportional to the
-    /// font size like real glyphs, close to the Latin average width.
-    fn estimate(text: &str, font: FontId) -> f32 {
-        text.chars().count() as f32 * font.size * 0.53
-    }
-
-    #[test]
-    fn density_follows_the_active_tabs_measured_content() {
-        let app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        let catalog = commands::catalog(&app);
-        let groups = groups_for_tab(&catalog, WorkflowTab::View);
-        let full_need = required_width(&groups, RibbonDensity::Full, &estimate);
-
-        // Full the moment the tab's content fits — no fixed window breakpoint.
-        assert_eq!(
-            density(full_need + 1.0, true, &groups, &estimate),
-            RibbonDensity::Full
-        );
-        assert_eq!(
-            density(full_need - 1.0, true, &groups, &estimate),
-            RibbonDensity::Compact
-        );
-        // Width never hides the command area: even an absurdly narrow window
-        // stays Compact (the overflow menu absorbs the groups). Only the
-        // user's own collapse produces Collapsed.
-        assert_eq!(
-            density(100.0, true, &groups, &estimate),
-            RibbonDensity::Compact
-        );
-        assert_eq!(
-            density(full_need + 1.0, false, &groups, &estimate),
-            RibbonDensity::Collapsed
-        );
-    }
-
-    #[test]
-    fn compact_groups_reserve_width_for_single_line_titles() {
-        assert!(group_width("Guides", &[], RibbonDensity::Compact, &estimate) > ROW_HEIGHT);
-        assert!(group_width("Object", &[], RibbonDensity::Compact, &estimate) > ROW_HEIGHT);
-    }
-
-    #[test]
-    fn overflow_never_shows_a_group_outranked_by_a_hidden_one() {
-        let priorities = [2u8, 0, 1, 3];
-        let widths = [40.0, 50.0, 30.0, 20.0];
-        // 50 + 30 fit; the priority-2 group does not, and it must also block
-        // the smaller priority-3 group behind it — a lower-priority group must
-        // never appear while a higher-priority one sits in the More menu.
-        let shown = shown_groups(&priorities, &widths, 90.0);
-        assert_eq!(shown, vec![false, true, true, false]);
-    }
-
-    #[test]
-    fn an_oversized_group_does_not_dam_its_equal_priority_peers() {
-        let priorities = [1u8, 1, 2];
-        let widths = [100.0, 30.0, 10.0];
-        // The oversized first group overflows, its equal-priority peer still
-        // takes the space, and everything of lower priority follows it into
-        // More.
-        let shown = shown_groups(&priorities, &widths, 40.0);
-        assert_eq!(shown, vec![false, true, false]);
-    }
-
-    #[test]
-    fn every_ribbon_group_has_an_explicit_order() {
-        for (tab, group) in commands::ribbon_group_pairs() {
-            assert_ne!(
-                group_order(tab, group),
-                u8::MAX,
-                "({tab:?}, {group:?}) has no explicit order; add it to group_order"
-            );
-        }
-    }
-}
+#[path = "layout_tests.rs"]
+mod tests;

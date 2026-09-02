@@ -1,8 +1,8 @@
-//! Individual Ribbon command widgets: the density-dependent buttons, their
-//! short labels, and the overflow-menu rows.
+//! Individual Ribbon command widgets: the scale-dependent buttons, their
+//! short labels, the Collapsed group tile, and the overflow-menu rows.
 
 use egui::text::LayoutJob;
-use egui::{Align2, Button, Color32, FontId, RichText, Stroke, TextFormat, Ui, Vec2};
+use egui::{Align2, Button, Color32, FontId, Response, RichText, Stroke, TextFormat, Ui, Vec2};
 use plotx_core::actions::ZOrder;
 use plotx_core::export::ExportFormat;
 use plotx_core::layout::SpacingMode;
@@ -10,8 +10,7 @@ use plotx_core::state::{PlotxApp, Tool};
 
 use super::super::clipboard_table::ClipboardTablePaste;
 use super::super::commands::{self, CommandDescriptor, CommandId};
-use super::RibbonDensity;
-use super::layout::{Measure, ROW_HEIGHT, TILE_HEIGHT, button_width, segment_width};
+use super::layout::{GroupScale, Measure, STACK_ROW_HEIGHT, TILE_HEIGHT, segment_width};
 
 /// Ribbon buttons carry short verb labels; the full command name and shortcut
 /// stay in the tooltip, menus and the command palette.
@@ -83,144 +82,220 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
     }
 }
 
+/// One command at `scale`, painted `width` wide so the cells of a column
+/// line up. Large paints an icon-over-label tile; Medium an icon-beside-label
+/// row; Small an icon square, falling back to the Medium row for a command
+/// with no icon so it never loses its name.
 pub(super) fn ribbon_button(
     app: &mut PlotxApp,
     clipboard: &mut ClipboardTablePaste,
     ui: &mut Ui,
     command: &CommandDescriptor,
-    density: RibbonDensity,
-    tile: f32,
-    measure: Measure,
+    scale: GroupScale,
+    width: f32,
 ) {
     let label = short_label(command);
     let primary = primary_run(command.id) && command.enabled;
-    // Icons carry the accent colour whenever the command is available — a
-    // checked toggle keeps it, so the active tool never reads weaker than an
-    // idle one. Labels use the placeholder so they inherit the correct
-    // disabled/selected colours from the widget state.
-    let icon_color = if primary {
-        ui.visuals().selection.stroke.color
-    } else if command.enabled {
-        ui.visuals().hyperlink_color
-    } else {
-        Color32::PLACEHOLDER
-    };
-    let mut job = LayoutJob::default();
-    let response = if density == RibbonDensity::Full {
-        let icon_font = FontId::proportional(16.0);
-        let label_font = crate::typography::subheadline_font();
-        let selected = command.checked == Some(true);
-        // Keep the command name in the button for accessibility, but paint the
-        // two visible rows ourselves so both share the tile's exact centre.
-        // LayoutJob's per-row offsets otherwise make differently sized glyphs
-        // appear alternately left- and right-aligned.
-        let mut button = Button::selectable(
+    let selected = command.checked == Some(true);
+    let paint = Paint::for_command(ui, command, primary);
+    let response = match (scale, command.icon) {
+        (GroupScale::Large, icon) => tile(
+            ui,
+            &paint,
+            primary,
             selected,
-            RichText::new(&label).size(1.0).color(Color32::TRANSPARENT),
-        )
-        .min_size(Vec2::new(tile, TILE_HEIGHT));
-        if primary {
-            // `selectable(false)` hides the resting frame; a primary button
-            // must keep it or the fill never paints.
-            button = button
-                .frame_when_inactive(true)
-                .fill(ui.visuals().selection.bg_fill)
-                .stroke(Stroke::NONE);
+            command.enabled,
+            width,
+            icon,
+            &label,
+        ),
+        (GroupScale::Small, Some(icon)) => {
+            let button = paint.frame(
+                Button::selectable(
+                    selected,
+                    RichText::new(icon).size(14.0).color(paint.icon_color),
+                ),
+                primary,
+            );
+            ui.add_enabled(
+                command.enabled,
+                button.min_size(Vec2::new(width, STACK_ROW_HEIGHT)),
+            )
         }
-        let response = ui.add_enabled(command.enabled, button);
-        let text_color = if primary {
-            ui.visuals().selection.stroke.color
-        } else {
-            ui.style()
-                .button_style(response.widget_state(), selected)
-                .text_style
-                .color
-        };
-        let center = response.rect.center();
-        if let Some(icon) = command.icon {
-            ui.painter().text(
-                center - Vec2::new(0.0, 7.5),
-                Align2::CENTER_CENTER,
-                icon,
-                icon_font,
-                if command.enabled {
-                    icon_color
-                } else {
-                    text_color
-                },
-            );
-            ui.painter().text(
-                center + Vec2::new(0.0, 9.0),
-                Align2::CENTER_CENTER,
-                &label,
-                label_font,
-                text_color,
-            );
-        } else {
-            ui.painter().text(
-                center,
-                Align2::CENTER_CENTER,
-                &label,
-                label_font,
-                text_color,
-            );
+        (GroupScale::Medium | GroupScale::Small | GroupScale::Collapsed, icon) => {
+            let mut job = LayoutJob::default();
+            if let Some(icon) = icon {
+                job.append(
+                    icon,
+                    0.0,
+                    TextFormat {
+                        font_id: FontId::proportional(14.0),
+                        color: paint.icon_color,
+                        ..Default::default()
+                    },
+                );
+                job.append(
+                    &format!("  {label}"),
+                    0.0,
+                    TextFormat {
+                        font_id: crate::typography::callout_font(),
+                        color: paint.label_color,
+                        ..Default::default()
+                    },
+                );
+            } else {
+                job.append(
+                    &label,
+                    0.0,
+                    TextFormat {
+                        font_id: crate::typography::callout_font(),
+                        color: paint.label_color,
+                        ..Default::default()
+                    },
+                );
+            }
+            let button = paint.frame(Button::selectable(selected, job), primary);
+            ui.add_enabled(
+                command.enabled,
+                button.min_size(Vec2::new(width, STACK_ROW_HEIGHT)),
+            )
         }
-        response
-    } else {
-        // Compact keeps the label next to the glyph: an icon alone cannot
-        // carry a command's meaning, and a label-less row turns every glyph
-        // pair that merely rhymes into a guessing game.
-        let label_color = if primary {
-            ui.visuals().selection.stroke.color
-        } else {
-            Color32::PLACEHOLDER
-        };
-        if let Some(icon) = command.icon {
-            job.append(
-                icon,
-                0.0,
-                TextFormat {
-                    font_id: FontId::proportional(14.0),
-                    color: icon_color,
-                    ..Default::default()
-                },
-            );
-            job.append(
-                &format!("  {label}"),
-                0.0,
-                TextFormat {
-                    font_id: crate::typography::callout_font(),
-                    color: label_color,
-                    ..Default::default()
-                },
-            );
-        } else {
-            job.append(
-                &label,
-                0.0,
-                TextFormat {
-                    font_id: crate::typography::callout_font(),
-                    color: label_color,
-                    ..Default::default()
-                },
-            );
-        }
-        let mut button = Button::selectable(command.checked == Some(true), job)
-            .min_size(Vec2::new(button_width(command, measure), ROW_HEIGHT));
-        if primary {
-            button = button
-                .frame_when_inactive(true)
-                .fill(ui.visuals().selection.bg_fill)
-                .stroke(Stroke::NONE);
-        }
-        ui.add_enabled(command.enabled, button)
     };
     respond(app, clipboard, ui, command, response);
 }
 
-/// One-shot Run commands render as filled primary buttons — the same accent
-/// treatment as a task card's Run button — so "executes the computation" and
-/// "switches a mode" stop sharing one resting look.
+/// The Collapsed group tile: the group's lead icon over its title and a
+/// caret. The caller opens the group's Large layout from the response.
+pub(super) fn collapsed_tile(
+    ui: &mut Ui,
+    title: &str,
+    icon: Option<&str>,
+    width: f32,
+    open: bool,
+) -> Response {
+    let paint = Paint {
+        icon_color: ui.visuals().hyperlink_color,
+        label_color: Color32::PLACEHOLDER,
+        primary_text: ui.visuals().selection.stroke.color,
+        primary_fill: ui.visuals().selection.bg_fill,
+    };
+    let label = super::layout::collapsed_label(title);
+    tile(ui, &paint, false, open, true, width, icon, &label)
+        .on_hover_text(format!("{title} commands"))
+}
+
+/// Colours of one button: the accent glyph, the placeholder label that
+/// inherits the widget state, and the fill and text of a primary button.
+struct Paint {
+    icon_color: Color32,
+    label_color: Color32,
+    primary_text: Color32,
+    primary_fill: Color32,
+}
+
+impl Paint {
+    fn for_command(ui: &Ui, command: &CommandDescriptor, primary: bool) -> Self {
+        let primary_text = ui.visuals().selection.stroke.color;
+        // Icons carry the accent colour whenever the command is available — a
+        // checked toggle keeps it, so the active tool never reads weaker than
+        // an idle one. Labels use the placeholder so they inherit the correct
+        // disabled/selected colours from the widget state.
+        let icon_color = if primary {
+            primary_text
+        } else if command.enabled {
+            ui.visuals().hyperlink_color
+        } else {
+            Color32::PLACEHOLDER
+        };
+        Self {
+            icon_color,
+            label_color: if primary {
+                primary_text
+            } else {
+                Color32::PLACEHOLDER
+            },
+            primary_text,
+            primary_fill: ui.visuals().selection.bg_fill,
+        }
+    }
+
+    /// One-shot Run commands render as filled primary buttons — the same
+    /// accent treatment as a task card's Run button — so "executes the
+    /// computation" and "switches a mode" stop sharing one resting look.
+    fn frame<'a>(&self, button: Button<'a>, primary: bool) -> Button<'a> {
+        if primary {
+            // `selectable(false)` hides the resting frame; a primary button
+            // must keep it or the fill never paints.
+            button
+                .frame_when_inactive(true)
+                .fill(self.primary_fill)
+                .stroke(Stroke::NONE)
+        } else {
+            button
+        }
+    }
+}
+
+/// An icon-over-label tile. Keeps the label in the button for accessibility,
+/// but paints the two visible rows itself so both share the tile's exact
+/// centre: LayoutJob's per-row offsets otherwise make differently sized
+/// glyphs appear alternately left- and right-aligned.
+#[allow(clippy::too_many_arguments)]
+fn tile(
+    ui: &mut Ui,
+    paint: &Paint,
+    primary: bool,
+    selected: bool,
+    enabled: bool,
+    width: f32,
+    icon: Option<&str>,
+    label: &str,
+) -> Response {
+    let button = paint.frame(
+        Button::selectable(
+            selected,
+            RichText::new(label).size(1.0).color(Color32::TRANSPARENT),
+        )
+        .min_size(Vec2::new(width, TILE_HEIGHT)),
+        primary,
+    );
+    let response = ui.add_enabled(enabled, button);
+    let text_color = if primary {
+        paint.primary_text
+    } else {
+        ui.style()
+            .button_style(response.widget_state(), selected)
+            .text_style
+            .color
+    };
+    let center = response.rect.center();
+    let label_font = crate::typography::subheadline_font();
+    if let Some(icon) = icon {
+        ui.painter().text(
+            center - Vec2::new(0.0, 7.5),
+            Align2::CENTER_CENTER,
+            icon,
+            FontId::proportional(16.0),
+            if enabled {
+                paint.icon_color
+            } else {
+                text_color
+            },
+        );
+        ui.painter().text(
+            center + Vec2::new(0.0, 9.0),
+            Align2::CENTER_CENTER,
+            label,
+            label_font,
+            text_color,
+        );
+    } else {
+        ui.painter()
+            .text(center, Align2::CENTER_CENTER, label, label_font, text_color);
+    }
+    response
+}
+
 fn primary_run(id: CommandId) -> bool {
     matches!(
         id,
@@ -237,6 +312,7 @@ pub(super) fn segmented_run(
     ui: &mut Ui,
     entries: &[&CommandDescriptor],
     measure: Measure,
+    height: f32,
 ) {
     ui.scope(|ui| {
         ui.spacing_mut().item_spacing.x = 1.0;
@@ -245,7 +321,7 @@ pub(super) fn segmented_run(
             let button =
                 Button::selectable(selected, crate::typography::callout(short_label(command)))
                     .frame_when_inactive(true)
-                    .min_size(Vec2::new(segment_width(command, measure), ROW_HEIGHT));
+                    .min_size(Vec2::new(segment_width(command, measure), height));
             let response = ui.add_enabled(command.enabled, button);
             respond(app, clipboard, ui, command, response);
         }
@@ -259,7 +335,7 @@ fn respond(
     clipboard: &mut ClipboardTablePaste,
     ui: &Ui,
     command: &CommandDescriptor,
-    response: egui::Response,
+    response: Response,
 ) {
     let tip = match &command.shortcut {
         Some(shortcut) => format!("{} ({shortcut})", command.label),

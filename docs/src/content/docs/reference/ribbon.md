@@ -40,9 +40,15 @@ anything temporarily unavailable stays visible and disabled with a reason.
 
 The Ribbon measures the active tab's content against the window:
 
-- When everything fits, buttons render as icon-over-label tiles.
-- When it does not, buttons drop to a compact row that keeps each label next
-  to its icon, and whole low-priority groups move into the **More** menu.
+- When everything fits, every group shows icon-over-label tiles.
+- When it does not, groups shrink one step at a time, lowest priority first
+  and the rightmost first among equals: to two rows of icon-and-label buttons,
+  then to two rows of icon-only buttons (a command without an icon keeps its
+  label), then to a single button carrying the group's name that opens the
+  full group in a popover. A group never shrinks further than a group of
+  lower priority, and every group keeps its position.
+- Only when every group is already a single button and the row still does not
+  fit do whole groups move into the **More** menu.
 - The command area never hides by itself. **Collapse ribbon** (the caret at
   the right end of the task row) puts it away and brings it back.
 

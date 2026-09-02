@@ -43,9 +43,10 @@ this documentation in your browser.
 The Ribbon is a focused shortcut surface, not a second complete menu.
 Choose **Data**, **Process**, **Analyze**, **Figure**, **Arrange**, or **View** to see
 grouped frequent commands for that stage. Use **Collapse ribbon** to collapse it to the task tabs.
-When a tab's full tiles no longer fit, buttons drop to a compact labelled row,
-and whole low-priority groups move into **More**; the command area never hides
-on its own — only **Collapse ribbon** puts it away.
+When a tab's tiles no longer fit, groups shrink one at a time, lowest priority
+first: to two rows of icon-and-label buttons, then to icon-only rows, then to a
+single button that opens the group. Every group keeps its place; the command
+area never hides on its own — only **Collapse ribbon** puts it away.
 
 **Search commands** opens the command palette. Menu items, Ribbon buttons,
 shortcuts, and palette rows share the same enabled and selected states.

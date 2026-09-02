@@ -14,17 +14,19 @@ use plotx_core::state::{PlotxApp, ToolGroup, WorkflowTab};
 
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
-use buttons::{overflow_item, ribbon_button};
-use layout::{ROW_HEIGHT, TILE_HEIGHT};
+use buttons::{collapsed_tile, overflow_item, ribbon_button};
+use layout::{GroupScale, ROW_HEIGHT, STACK_GAP, STACK_ROW_HEIGHT, TILE_HEIGHT, TabPlan};
 
 /// The native metric includes a little more bottom breathing room than the
 /// tab highlight needs visually; trim it so the highlight has equal margins.
 const MACOS_TITLE_ROW_BOTTOM_TRIM: f32 = 2.0;
 
+/// The task row's summary of the command area: hidden by the user, every
+/// group at its Large scale, or at least one group scaled down.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RibbonDensity {
     Collapsed,
-    Compact,
+    Scaled,
     Full,
 }
 
@@ -43,7 +45,8 @@ pub(crate) fn render(
         let measure = layout::text_measure(ui.ctx().clone());
         let catalog = commands::catalog(app);
         let groups = layout::groups_for_tab(&catalog, app.session.ui.ribbon_tab);
-        layout::density(width, app.session.ui.ribbon_expanded, &groups, &measure)
+        let plan = tab_plan(ui, &groups, &measure, width);
+        layout::density(app.session.ui.ribbon_expanded, &plan)
     };
     task_row(app, clipboard, ui, density, chrome);
     if density != RibbonDensity::Collapsed {
@@ -262,37 +265,29 @@ fn command_row(
         return;
     }
     let measure = layout::text_measure(ui.ctx().clone());
-    let widths: Vec<f32> = groups
-        .iter()
-        .map(|(title, _, entries)| layout::group_width(title, entries, density, &measure) + 8.0)
-        .collect();
-    let priorities: Vec<u8> = groups.iter().map(|(_, priority, _)| *priority).collect();
-    let required: f32 = widths.iter().sum();
-    let available = ui.available_width();
-    let budget = if required <= available {
-        available
-    } else {
-        (available - more_button_width(ui, &measure)).max(0.0)
-    };
-    let shown = layout::shown_groups(&priorities, &widths, budget);
+    let plan = tab_plan(ui, &groups, &measure, ui.available_width());
     let (visible, hidden): (Vec<_>, Vec<_>) = groups
         .into_iter()
         .enumerate()
-        .partition(|(index, _)| shown[*index]);
+        .partition(|(index, _)| plan.shown[*index]);
 
     ui.horizontal(|ui| {
-        ui.set_min_height(if density == RibbonDensity::Full {
-            TILE_HEIGHT + 18.0
-        } else {
-            ROW_HEIGHT + 18.0
-        });
+        ui.set_min_height(TILE_HEIGHT + 18.0);
         ui.spacing_mut().item_spacing.x = if density == RibbonDensity::Full {
             7.0
         } else {
             3.0
         };
-        for (_, (group, _, commands)) in visible {
-            ribbon_group(app, clipboard, ui, group, commands, density, &measure);
+        for (index, (group, _, commands)) in visible {
+            ribbon_group(
+                app,
+                clipboard,
+                ui,
+                group,
+                commands,
+                plan.scales[index],
+                &measure,
+            );
             ui.separator();
         }
         if !hidden.is_empty() {
@@ -309,6 +304,24 @@ fn command_row(
             .on_hover_text("Commands moved here to keep targets readable at this width");
         }
     });
+}
+
+/// The scale of every group of the tab within `width`, with the More menu's
+/// reservation as the last resort. Group widths include their separator.
+fn tab_plan(
+    ui: &Ui,
+    groups: &[(&'static str, u8, Vec<&CommandDescriptor>)],
+    measure: layout::Measure,
+    width: f32,
+) -> TabPlan {
+    let priorities: Vec<u8> = groups.iter().map(|(_, priority, _)| *priority).collect();
+    let widths: Vec<[f32; 4]> = groups
+        .iter()
+        .map(|(title, _, entries)| {
+            GroupScale::ALL.map(|scale| layout::group_width(title, entries, scale, measure) + 8.0)
+        })
+        .collect();
+    layout::plan(&priorities, &widths, width, more_button_width(ui, measure))
 }
 
 fn more_label() -> String {
@@ -328,37 +341,44 @@ fn ribbon_group(
     ui: &mut Ui,
     title: &str,
     entries: Vec<&CommandDescriptor>,
-    density: RibbonDensity,
+    scale: GroupScale,
     measure: layout::Measure,
 ) {
-    let width = layout::group_width(title, &entries, density, measure);
-    let tile = layout::tile_width(&entries, measure);
+    if scale == GroupScale::Collapsed {
+        collapsed_group(app, clipboard, ui, title, entries, measure);
+        return;
+    }
+    let width = layout::group_width(title, &entries, scale, measure);
+    let columns = layout::columns(&entries, scale, measure);
     ui.allocate_ui_with_layout(
-        Vec2::new(
-            width,
-            if density == RibbonDensity::Full {
-                TILE_HEIGHT + 16.0
-            } else {
-                ROW_HEIGHT + 16.0
-            },
-        ),
+        Vec2::new(width, TILE_HEIGHT + 16.0),
         egui::Layout::top_down(egui::Align::Center),
         |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = if density == RibbonDensity::Full {
-                    4.0
-                } else {
-                    2.0
-                };
-                for run in layout::group_runs(&entries) {
-                    match run {
-                        layout::Run::Single(command) => {
-                            ribbon_button(app, clipboard, ui, command, density, tile, measure);
+                ui.spacing_mut().item_spacing.x = layout::column_spacing(scale);
+                for column in columns {
+                    // A column is one Large run, or a stack of up to two
+                    // Medium/Small runs painted to the column's shared width.
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = STACK_GAP;
+                        for run in column.cells {
+                            match run {
+                                layout::Run::Single(command) => {
+                                    ribbon_button(app, clipboard, ui, command, scale, column.width);
+                                }
+                                layout::Run::Segmented(family) => {
+                                    let height = if scale == GroupScale::Large {
+                                        ROW_HEIGHT
+                                    } else {
+                                        STACK_ROW_HEIGHT
+                                    };
+                                    buttons::segmented_run(
+                                        app, clipboard, ui, &family, measure, height,
+                                    );
+                                }
+                            }
                         }
-                        layout::Run::Segmented(family) => {
-                            buttons::segmented_run(app, clipboard, ui, &family, measure);
-                        }
-                    }
+                    });
                 }
             });
             ui.add_space(1.0);
@@ -366,6 +386,43 @@ fn ribbon_group(
                 Label::new(crate::typography::caption(title).color(ui.visuals().weak_text_color()))
                     .wrap_mode(TextWrapMode::Extend),
             );
+        },
+    );
+}
+
+/// A Collapsed group: one tile in the group's place that opens the group's
+/// Large layout in a popover, so a narrow window keeps every group where the
+/// user learned to find it. Clicking a command closes the popover.
+fn collapsed_group(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    ui: &mut Ui,
+    title: &str,
+    entries: Vec<&CommandDescriptor>,
+    measure: layout::Measure,
+) {
+    let width = layout::collapsed_width(title, measure);
+    let icon = entries.iter().find_map(|command| command.icon);
+    let popup_id = ui.id().with(("collapsed_group", title));
+    let open = egui::Popup::is_id_open(ui.ctx(), popup_id);
+    ui.allocate_ui_with_layout(
+        Vec2::new(width, TILE_HEIGHT + 16.0),
+        egui::Layout::top_down(egui::Align::Center),
+        |ui| {
+            let response = collapsed_tile(ui, title, icon, width, open);
+            egui::Popup::menu(&response).id(popup_id).show(|ui| {
+                ui.horizontal(|ui| {
+                    ribbon_group(
+                        app,
+                        clipboard,
+                        ui,
+                        title,
+                        entries,
+                        GroupScale::Large,
+                        measure,
+                    );
+                });
+            });
         },
     );
 }
