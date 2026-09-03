@@ -273,11 +273,9 @@ fn command_row(
 
     ui.horizontal(|ui| {
         ui.set_min_height(TILE_HEIGHT + 18.0);
-        ui.spacing_mut().item_spacing.x = if density == RibbonDensity::Full {
-            7.0
-        } else {
-            3.0
-        };
+        // The plan charged every group `GROUP_SLOT_EXTRA` for its separator;
+        // the row must spend exactly that.
+        ui.spacing_mut().item_spacing.x = layout::GROUP_GAP;
         for (index, (group, _, commands)) in visible {
             ribbon_group(
                 app,
@@ -288,7 +286,7 @@ fn command_row(
                 plan.scales[index],
                 &measure,
             );
-            ui.separator();
+            ui.add(egui::Separator::default().spacing(layout::SEPARATOR_WIDTH));
         }
         if !hidden.is_empty() {
             ui.menu_button(more_label(), |ui| {
@@ -318,7 +316,9 @@ fn tab_plan(
     let widths: Vec<[f32; 4]> = groups
         .iter()
         .map(|(title, _, entries)| {
-            GroupScale::ALL.map(|scale| layout::group_width(title, entries, scale, measure) + 8.0)
+            GroupScale::ALL.map(|scale| {
+                layout::group_width(title, entries, scale, measure) + layout::GROUP_SLOT_EXTRA
+            })
         })
         .collect();
     layout::plan(&priorities, &widths, width, more_button_width(ui, measure))
@@ -373,10 +373,17 @@ fn ribbon_group(
         // Two stacked rows must fit the tile height: 2 × 22 + 2. The default
         // vertical padding would push a 12 pt row past 22.
         column_ui.spacing_mut().button_padding.y = 2.0;
-        for run in column.cells {
-            match run {
+        for cell in column.cells {
+            match cell.run {
                 layout::Run::Single(command) => {
-                    ribbon_button(app, clipboard, &mut column_ui, command, scale, column.width);
+                    ribbon_button(
+                        app,
+                        clipboard,
+                        &mut column_ui,
+                        command,
+                        cell.scale,
+                        column.width,
+                    );
                 }
                 layout::Run::Segmented(family) => {
                     let height = if scale == GroupScale::Large {

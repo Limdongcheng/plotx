@@ -18,6 +18,12 @@ pub(super) const STACK_ROW_HEIGHT: f32 = 22.0;
 pub(super) const STACK_GAP: f32 = 2.0;
 /// Height of a segmented control sitting beside Large tiles.
 pub(super) const ROW_HEIGHT: f32 = 26.0;
+/// The command row's gap on either side of a group separator, and the
+/// separator's own width; together they are what one group costs beyond
+/// its measured width.
+pub(super) const GROUP_GAP: f32 = 4.0;
+pub(super) const SEPARATOR_WIDTH: f32 = 6.0;
+pub(super) const GROUP_SLOT_EXTRA: f32 = GROUP_GAP * 2.0 + SEPARATOR_WIDTH;
 
 /// Returns the width of `text` in `font`. Layout decisions and painting must
 /// agree on glyph widths (a per-character estimate drifts on CJK and long
@@ -232,8 +238,17 @@ pub(super) fn collapsed_label(title: &str) -> String {
 /// stacked runs at Medium and Small, all painted `width` wide so a column
 /// reads as one even stack.
 pub(super) struct Column<'a> {
-    pub(super) cells: Vec<Run<'a>>,
+    pub(super) cells: Vec<Cell<'a>>,
     pub(super) width: f32,
+}
+
+/// One run with the scale it is actually painted at. This is the group's
+/// scale except at Small, where a command that an icon alone cannot name
+/// (no icon, or an icon its group-mates share, as parameterized families
+/// do) keeps its Medium row.
+pub(super) struct Cell<'a> {
+    pub(super) run: Run<'a>,
+    pub(super) scale: GroupScale,
 }
 
 /// The column plan of a group at a non-Collapsed `scale`. Measurement and
@@ -245,30 +260,53 @@ pub(super) fn columns<'a>(
 ) -> Vec<Column<'a>> {
     let runs = group_runs(entries);
     let tile = tile_width(entries, measure);
-    let cell_width = |run: &Run<'a>| match run {
-        Run::Single(command) => match scale {
-            GroupScale::Large => tile,
-            GroupScale::Medium => medium_width(command, measure),
-            GroupScale::Small | GroupScale::Collapsed => small_width(command, measure),
-        },
-        Run::Segmented(family) => segmented_width(family, measure),
-    };
     let per_column = if scale == GroupScale::Large { 1 } else { 2 };
     let mut columns: Vec<Column<'a>> = Vec::new();
     for run in runs {
-        let width = cell_width(&run);
+        let cell_scale = match &run {
+            Run::Single(command)
+                if scale == GroupScale::Small && !icon_identifies(command, entries) =>
+            {
+                GroupScale::Medium
+            }
+            _ => scale,
+        };
+        let width = match &run {
+            Run::Single(command) => match cell_scale {
+                GroupScale::Large => tile,
+                GroupScale::Medium => medium_width(command, measure),
+                GroupScale::Small | GroupScale::Collapsed => STACK_ROW_HEIGHT,
+            },
+            Run::Segmented(family) => segmented_width(family, measure),
+        };
+        let cell = Cell {
+            run,
+            scale: cell_scale,
+        };
         match columns.last_mut() {
             Some(column) if column.cells.len() < per_column => {
-                column.cells.push(run);
+                column.cells.push(cell);
                 column.width = column.width.max(width);
             }
             _ => columns.push(Column {
-                cells: vec![run],
+                cells: vec![cell],
                 width,
             }),
         }
     }
     columns
+}
+
+/// Whether `command`'s icon alone tells it apart within its group: it has
+/// one, and no group-mate shows the same glyph.
+pub(super) fn icon_identifies(command: &CommandDescriptor, entries: &[&CommandDescriptor]) -> bool {
+    command.icon.is_some_and(|icon| {
+        entries
+            .iter()
+            .filter(|other| other.icon == Some(icon))
+            .count()
+            == 1
+    })
 }
 
 /// All tiles in a group share the width of the widest short label, so a group
@@ -292,16 +330,6 @@ pub(super) fn medium_width(command: &CommandDescriptor, measure: Measure) -> f32
         label
     };
     (content + 16.0).clamp(40.0, 180.0)
-}
-
-/// A Small cell: an icon square, or the Medium row when the command has no
-/// icon to stand in for its label.
-pub(super) fn small_width(command: &CommandDescriptor, measure: Measure) -> f32 {
-    if command.icon.is_some() {
-        STACK_ROW_HEIGHT
-    } else {
-        medium_width(command, measure)
-    }
 }
 
 /// Mutually exclusive command families that render as one segmented control

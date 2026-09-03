@@ -20,7 +20,8 @@ fn tab_widths(app: &PlotxApp, tab: WorkflowTab) -> (Vec<u8>, Vec<[f32; 4]>) {
     let widths = groups
         .iter()
         .map(|(title, _, entries)| {
-            GroupScale::ALL.map(|scale| group_width(title, entries, scale, &estimate) + 8.0)
+            GroupScale::ALL
+                .map(|scale| group_width(title, entries, scale, &estimate) + GROUP_SLOT_EXTRA)
         })
         .collect();
     (priorities, widths)
@@ -172,19 +173,38 @@ fn stacked_scales_hold_two_cells_per_column() {
 }
 
 #[test]
-fn small_keeps_the_label_of_an_iconless_command() {
+fn small_keeps_the_label_of_a_command_its_icon_cannot_name() {
     let app = app();
-    let iconless = commands::describe(&app, CommandId::CheckUpdates);
+    let catalog = commands::catalog(&app);
+    let groups = groups_for_tab(&catalog, WorkflowTab::Figure);
+    let (_, _, style) = groups
+        .iter()
+        .find(|(group, _, _)| *group == "Style")
+        .expect("the Figure tab has a Style group");
+    // The theme family shares one glyph, so at Small its members keep their
+    // Medium rows; a command with a glyph of its own drops to an icon square.
+    let mut saw_theme = false;
+    let mut saw_square = false;
+    for column in columns(style, GroupScale::Small, &estimate) {
+        for cell in column.cells {
+            let Run::Single(command) = cell.run else {
+                continue;
+            };
+            if matches!(command.id, CommandId::ApplyTheme(_)) {
+                assert_eq!(cell.scale, GroupScale::Medium);
+                saw_theme = true;
+            } else if icon_identifies(command, style) {
+                assert_eq!(cell.scale, GroupScale::Small);
+                saw_square = true;
+            }
+        }
+    }
     assert!(
-        iconless.icon.is_none(),
-        "test premise: CheckUpdates has no icon"
+        saw_theme && saw_square,
+        "test premise: Style mixes both kinds"
     );
-    assert_eq!(
-        small_width(&iconless, &estimate),
-        medium_width(&iconless, &estimate)
-    );
-    let with_icon = commands::describe(&app, CommandId::TidyBoard);
-    assert_eq!(small_width(&with_icon, &estimate), STACK_ROW_HEIGHT);
+    let iconless = commands::describe(&app, CommandId::CheckUpdates);
+    assert!(!icon_identifies(&iconless, &[&iconless]));
 }
 
 #[test]
