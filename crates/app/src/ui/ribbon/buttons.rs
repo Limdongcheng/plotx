@@ -5,12 +5,11 @@ use egui::text::LayoutJob;
 use egui::{Align2, Button, Color32, FontId, Response, RichText, Stroke, TextFormat, Ui, Vec2};
 use plotx_core::actions::ZOrder;
 use plotx_core::export::ExportFormat;
-use plotx_core::layout::SpacingMode;
 use plotx_core::state::{PlotxApp, Tool};
 
 use super::super::clipboard_table::ClipboardTablePaste;
 use super::super::commands::{self, CommandDescriptor, CommandId};
-use super::layout::{GroupScale, Measure, STACK_ROW_HEIGHT, TILE_HEIGHT, segment_width};
+use super::layout::{GroupScale, STACK_ROW_HEIGHT, TILE_HEIGHT};
 
 /// Ribbon buttons carry short verb labels; the full command name and shortcut
 /// stay in the tooltip, menus and the command palette.
@@ -54,14 +53,6 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
         CommandId::TogglePrimarySidebar => "Left Bar".to_owned(),
         CommandId::ToggleSecondarySidebar => "Right Bar".to_owned(),
         CommandId::ArrangeGrid(rows, cols) => format!("Plots {rows} × {cols}"),
-        // Segment captions: the family's shared "Spacing:" / "Minimum
-        // spacing:" prefix lives in the tooltip, not on every segment.
-        CommandId::SetSpacingMode(mode) => match mode {
-            SpacingMode::Frame => "Frame",
-            SpacingMode::Visual => "Visual",
-        }
-        .to_owned(),
-        CommandId::SetGutterPreset(preset) => preset.label().to_owned(),
         CommandId::ZOrder(mode) => match mode {
             ZOrder::Front => "To Front",
             ZOrder::Forward => "Forward",
@@ -303,33 +294,6 @@ fn primary_run(id: CommandId) -> bool {
         id,
         CommandId::RunPeakFit | CommandId::RunCurveFit | CommandId::RunCraft
     )
-}
-
-/// A mutually exclusive command family as one segmented control: adjacent
-/// framed segments with exactly one selected, replacing a row of look-alike
-/// buttons that gave no hint the choices exclude each other.
-pub(super) fn segmented_run(
-    app: &mut PlotxApp,
-    clipboard: &mut ClipboardTablePaste,
-    ui: &mut Ui,
-    entries: &[&CommandDescriptor],
-    measure: Measure,
-    height: f32,
-) {
-    // Segments sit side by side whatever layout hosts the run: at Large the
-    // group row, at Medium and Small a stacked column.
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 1.0;
-        for command in entries {
-            let selected = command.checked == Some(true);
-            let button =
-                Button::selectable(selected, crate::typography::callout(short_label(command)))
-                    .frame_when_inactive(true)
-                    .min_size(Vec2::new(segment_width(command, measure), height));
-            let response = ui.add_enabled(command.enabled, button);
-            respond(app, clipboard, ui, command, response);
-        }
-    });
 }
 
 /// Shared tail of every Ribbon command widget: the full-name tooltip (with

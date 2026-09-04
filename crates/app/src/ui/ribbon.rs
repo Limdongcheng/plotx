@@ -15,7 +15,7 @@ use plotx_core::state::{PlotxApp, ToolGroup, WorkflowTab};
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
 use buttons::{collapsed_tile, overflow_item, ribbon_button};
-use layout::{GroupScale, ROW_HEIGHT, STACK_GAP, STACK_ROW_HEIGHT, TILE_HEIGHT, TabPlan};
+use layout::{GroupScale, STACK_GAP, TILE_HEIGHT, TabPlan};
 
 /// The native metric includes a little more bottom breathing room than the
 /// tab highlight needs visually; trim it so the highlight has equal margins.
@@ -374,35 +374,14 @@ fn ribbon_group(
         // vertical padding would push a 12 pt row past 22.
         column_ui.spacing_mut().button_padding.y = 2.0;
         for cell in column.cells {
-            match cell.run {
-                layout::Run::Single(command) => {
-                    ribbon_button(
-                        app,
-                        clipboard,
-                        &mut column_ui,
-                        command,
-                        cell.scale,
-                        column.width,
-                    );
-                }
-                layout::Run::Segmented(family) => {
-                    let height = if scale == GroupScale::Large {
-                        // Centre the shorter control on the tile row.
-                        column_ui.add_space((TILE_HEIGHT - ROW_HEIGHT) / 2.0);
-                        ROW_HEIGHT
-                    } else {
-                        STACK_ROW_HEIGHT
-                    };
-                    buttons::segmented_run(
-                        app,
-                        clipboard,
-                        &mut column_ui,
-                        &family,
-                        measure,
-                        height,
-                    );
-                }
-            }
+            ribbon_button(
+                app,
+                clipboard,
+                &mut column_ui,
+                cell.command,
+                cell.scale,
+                column.width,
+            );
         }
         x += column.width + spacing;
     }

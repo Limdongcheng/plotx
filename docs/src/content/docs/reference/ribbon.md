@@ -52,7 +52,5 @@ The Ribbon measures the active tab's content against the window:
 - The command area never hides by itself. **Collapse ribbon** (the caret at
   the right end of the task row) puts it away and brings it back.
 
-Mutually exclusive choices, such as the spacing basis and minimum spacing on
-the **Arrange** tab, render as one segmented control with a single selected
-segment. Buttons that start a computation, such as **Run Peak Fit**, use the
-filled accent style — the same as a task card's Run button.
+Buttons that start a computation, such as **Run Peak Fit**, use the filled
+accent style — the same as a task card's Run button.

@@ -90,12 +90,13 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         CommandId::CopyFigure
         | CommandId::Export(ExportFormat::Png)
         | CommandId::Export(ExportFormat::Svg) => (Figure, "Output", 0, Always),
+        // The spacing basis and minimum spacing are canvas properties, set
+        // once per document: the inspector's Margins and spacing section,
+        // the canvas context menu, and the palette carry them.
         CommandId::Tool(Tool::Select)
         | CommandId::ArrangeGrid(1, 2)
         | CommandId::ArrangeGrid(2, 2)
         | CommandId::SimplifyInnerAxes
-        | CommandId::SetSpacingMode(_)
-        | CommandId::SetGutterPreset(_)
         | CommandId::TidyBoard => (Arrange, "Layout", 0, Always),
         CommandId::Align(_) => (Arrange, "Align", 1, Always),
         CommandId::Distribute(_) => (Arrange, "Distribute", 2, Always),

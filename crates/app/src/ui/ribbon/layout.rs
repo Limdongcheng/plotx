@@ -6,7 +6,7 @@
 use egui::FontId;
 use plotx_core::state::WorkflowTab;
 
-use super::super::commands::{CommandDescriptor, CommandId};
+use super::super::commands::CommandDescriptor;
 use super::RibbonDensity;
 use super::buttons::short_label;
 
@@ -16,8 +16,6 @@ use super::buttons::short_label;
 pub(super) const TILE_HEIGHT: f32 = 46.0;
 pub(super) const STACK_ROW_HEIGHT: f32 = 22.0;
 pub(super) const STACK_GAP: f32 = 2.0;
-/// Height of a segmented control sitting beside Large tiles.
-pub(super) const ROW_HEIGHT: f32 = 26.0;
 /// The command row's gap on either side of a group separator, and the
 /// separator's own width; together they are what one group costs beyond
 /// its measured width.
@@ -234,20 +232,20 @@ pub(super) fn collapsed_label(title: &str) -> String {
     format!("{title} {}", egui_phosphor::regular::CARET_DOWN)
 }
 
-/// One column of a group's render plan: a single run at Large, or up to two
-/// stacked runs at Medium and Small, all painted `width` wide so a column
-/// reads as one even stack.
+/// One column of a group's render plan: a single command at Large, or up
+/// to two stacked commands at Medium and Small, all painted `width` wide so
+/// a column reads as one even stack.
 pub(super) struct Column<'a> {
     pub(super) cells: Vec<Cell<'a>>,
     pub(super) width: f32,
 }
 
-/// One run with the scale it is actually painted at. This is the group's
-/// scale except at Small, where a command that an icon alone cannot name
-/// (no icon, or an icon its group-mates share, as parameterized families
-/// do) keeps its Medium row.
+/// One command with the scale it is actually painted at. This is the
+/// group's scale except at Small, where a command that an icon alone cannot
+/// name (no icon, or an icon its group-mates share, as parameterized
+/// families do) keeps its Medium row.
 pub(super) struct Cell<'a> {
-    pub(super) run: Run<'a>,
+    pub(super) command: &'a CommandDescriptor,
     pub(super) scale: GroupScale,
 }
 
@@ -258,29 +256,22 @@ pub(super) fn columns<'a>(
     scale: GroupScale,
     measure: Measure,
 ) -> Vec<Column<'a>> {
-    let runs = group_runs(entries);
     let tile = tile_width(entries, measure);
     let per_column = if scale == GroupScale::Large { 1 } else { 2 };
     let mut columns: Vec<Column<'a>> = Vec::new();
-    for run in runs {
-        let cell_scale = match &run {
-            Run::Single(command)
-                if scale == GroupScale::Small && !icon_identifies(command, entries) =>
-            {
-                GroupScale::Medium
-            }
-            _ => scale,
+    for &command in entries {
+        let cell_scale = if scale == GroupScale::Small && !icon_identifies(command, entries) {
+            GroupScale::Medium
+        } else {
+            scale
         };
-        let width = match &run {
-            Run::Single(command) => match cell_scale {
-                GroupScale::Large => tile,
-                GroupScale::Medium => medium_width(command, measure),
-                GroupScale::Small | GroupScale::Collapsed => STACK_ROW_HEIGHT,
-            },
-            Run::Segmented(family) => segmented_width(family, measure),
+        let width = match cell_scale {
+            GroupScale::Large => tile,
+            GroupScale::Medium => medium_width(command, measure),
+            GroupScale::Small | GroupScale::Collapsed => STACK_ROW_HEIGHT,
         };
         let cell = Cell {
-            run,
+            command,
             scale: cell_scale,
         };
         match columns.last_mut() {
@@ -310,12 +301,10 @@ pub(super) fn icon_identifies(command: &CommandDescriptor, entries: &[&CommandDe
 }
 
 /// All tiles in a group share the width of the widest short label, so a group
-/// reads as one row of even targets instead of a ragged strip. Segmented
-/// families size themselves and stay out of the fold.
+/// reads as one row of even targets instead of a ragged strip.
 pub(super) fn tile_width(entries: &[&CommandDescriptor], measure: Measure) -> f32 {
     entries
         .iter()
-        .filter(|command| segmented_family(command.id).is_none())
         .map(|command| measure(&short_label(command), crate::typography::subheadline_font()) + 18.0)
         .fold(58.0, f32::max)
         .min(112.0)
@@ -330,60 +319,6 @@ pub(super) fn medium_width(command: &CommandDescriptor, measure: Measure) -> f32
         label
     };
     (content + 16.0).clamp(40.0, 180.0)
-}
-
-/// Mutually exclusive command families that render as one segmented control
-/// instead of a row of look-alike buttons.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum SegmentedFamily {
-    Spacing,
-    Gutter,
-}
-
-pub(super) fn segmented_family(id: CommandId) -> Option<SegmentedFamily> {
-    match id {
-        CommandId::SetSpacingMode(_) => Some(SegmentedFamily::Spacing),
-        CommandId::SetGutterPreset(_) => Some(SegmentedFamily::Gutter),
-        _ => None,
-    }
-}
-
-/// A group's render plan: standalone commands, with each consecutive
-/// mutually exclusive family collapsed into one segmented run.
-pub(super) enum Run<'a> {
-    Single(&'a CommandDescriptor),
-    Segmented(Vec<&'a CommandDescriptor>),
-}
-
-pub(super) fn group_runs<'a>(entries: &[&'a CommandDescriptor]) -> Vec<Run<'a>> {
-    let mut runs: Vec<Run<'a>> = Vec::new();
-    for &command in entries {
-        let family = segmented_family(command.id);
-        match (family, runs.last_mut()) {
-            (Some(family), Some(Run::Segmented(run)))
-                if run
-                    .first()
-                    .is_some_and(|first| segmented_family(first.id) == Some(family)) =>
-            {
-                run.push(command);
-            }
-            (Some(_), _) => runs.push(Run::Segmented(vec![command])),
-            (None, _) => runs.push(Run::Single(command)),
-        }
-    }
-    runs
-}
-
-pub(super) fn segment_width(command: &CommandDescriptor, measure: Measure) -> f32 {
-    measure(&short_label(command), crate::typography::callout_font()) + 14.0
-}
-
-fn segmented_width(family: &[&CommandDescriptor], measure: Measure) -> f32 {
-    family
-        .iter()
-        .map(|command| segment_width(command, measure))
-        .sum::<f32>()
-        + family.len().saturating_sub(1) as f32
 }
 
 pub(super) fn groups_for_tab(

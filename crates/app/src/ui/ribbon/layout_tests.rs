@@ -1,4 +1,5 @@
 use super::super::super::commands;
+use super::super::super::commands::CommandId;
 use super::*;
 use plotx_core::state::PlotxApp;
 
@@ -166,8 +167,7 @@ fn stacked_scales_hold_two_cells_per_column() {
                     .iter()
                     .all(|column| (1..=2).contains(&column.cells.len()))
             );
-            // Segmented families fold into one run, so columns follow runs.
-            assert_eq!(columns.len(), group_runs(&entries).len().div_ceil(2));
+            assert_eq!(columns.len(), entries.len().div_ceil(2));
         }
     }
 }
@@ -187,9 +187,7 @@ fn small_keeps_the_label_of_a_command_its_icon_cannot_name() {
     let mut saw_square = false;
     for column in columns(style, GroupScale::Small, &estimate) {
         for cell in column.cells {
-            let Run::Single(command) = cell.run else {
-                continue;
-            };
+            let command = cell.command;
             if matches!(command.id, CommandId::ApplyTheme(_)) {
                 assert_eq!(cell.scale, GroupScale::Medium);
                 saw_theme = true;
