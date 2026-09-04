@@ -1,4 +1,5 @@
 use plotx_core::export::ExportFormat;
+use plotx_core::layout::Align;
 use plotx_core::state::{Tool, ToolGroup, WorkflowTab};
 
 use super::CommandId;
@@ -20,6 +21,19 @@ pub enum Applicability {
     SeriesOnly,
     Homonuclear2dOnly,
     ToolGroup(ToolGroup),
+}
+
+/// The row a command takes when its Ribbon group stacks two commands per
+/// column. Commands that come in two parallel families declare one, so the
+/// stacked group reads family by row (Left, Center, Right over Top, Middle,
+/// Bottom) instead of pairing neighbours from the catalog order. `None`
+/// stacks in catalog order.
+pub(crate) fn stack_row(id: CommandId) -> Option<u8> {
+    match id {
+        CommandId::Align(Align::Left | Align::HCenter | Align::Right) => Some(0),
+        CommandId::Align(Align::Top | Align::VCenter | Align::Bottom) => Some(1),
+        _ => None,
+    }
 }
 
 pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
@@ -90,12 +104,14 @@ pub(super) fn ribbon_placement(id: CommandId) -> Option<RibbonPlacement> {
         CommandId::CopyFigure
         | CommandId::Export(ExportFormat::Png)
         | CommandId::Export(ExportFormat::Svg) => (Figure, "Output", 0, Always),
+        // The spacing basis and minimum spacing are canvas properties, set
+        // once per document: the inspector's Margins and spacing section,
+        // the canvas context menu, and the palette carry them. The grid
+        // presets stay in the canvas context menu and the palette; the
+        // Ribbon offers the popover that takes any rows × columns.
         CommandId::Tool(Tool::Select)
-        | CommandId::ArrangeGrid(1, 2)
-        | CommandId::ArrangeGrid(2, 2)
+        | CommandId::ArrangeGridCustom
         | CommandId::SimplifyInnerAxes
-        | CommandId::SetSpacingMode(_)
-        | CommandId::SetGutterPreset(_)
         | CommandId::TidyBoard => (Arrange, "Layout", 0, Always),
         CommandId::Align(_) => (Arrange, "Align", 1, Always),
         CommandId::Distribute(_) => (Arrange, "Distribute", 2, Always),

@@ -216,6 +216,7 @@ fn execute_inner(
         CommandId::ArrangeGrid(rows, columns) => {
             app.arrange_active_canvas_grid(rows, columns);
         }
+        CommandId::ArrangeGridCustom => super::ribbon::toggle_arrange_grid_popover(app, ctx),
         CommandId::SimplifyInnerAxes => app.simplify_inner_axes(),
         CommandId::SetSpacingMode(mode) => app.set_spacing_mode(mode),
         CommandId::SetGutterPreset(preset) => app.set_gutter_preset(preset),

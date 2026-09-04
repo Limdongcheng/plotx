@@ -13,7 +13,7 @@ fn app() -> PlotxApp {
 }
 
 /// A plotted data table with `curves` y-columns, which is what Curve Fit gates on.
-fn app_with_table(curves: usize) -> PlotxApp {
+pub(super) fn app_with_table(curves: usize) -> PlotxApp {
     let mut app = app();
     let series = (0..curves)
         .map(|index| FloatSeries {

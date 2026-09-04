@@ -17,6 +17,7 @@ impl CommandId {
             Self::NewCanvas(i) => format!("file.new_canvas.{i}"),
             Self::Export(f) => format!("file.export.{}", f.extension()),
             Self::ArrangeGrid(r, c) => format!("arrange.grid.{r}x{c}"),
+            Self::ArrangeGridCustom => "arrange.grid.custom".to_owned(),
             Self::SetSpacingMode(mode) => format!("arrange.spacing_mode.{}", spacing_slug(mode)),
             Self::SetGutterPreset(preset) => format!("arrange.gutter.{}", gutter_slug(preset)),
             Self::Align(mode) => format!("arrange.align.{}", align_slug(mode)),
@@ -131,8 +132,8 @@ pub(super) fn command_identity(
             Some(icon::SIDEBAR_SIMPLE),
             Some(app.session.secondary_sidebar_visible),
         ),
-        CommandId::ZoomToFit => ("Zoom to Fit".into(), Some(icon::ARROWS_OUT), None),
-        CommandId::ZoomToSelection => ("Zoom to Selection".into(), Some(icon::CORNERS_OUT), None),
+        CommandId::ZoomToFit => ("Show All".into(), Some(icon::ARROWS_OUT), None),
+        CommandId::ZoomToSelection => ("Show Selection".into(), Some(icon::CORNERS_OUT), None),
         CommandId::FitPlotY => (
             "Fit Plot Vertically".into(),
             Some(icon::ARROWS_VERTICAL),
@@ -242,6 +243,7 @@ pub(super) fn command_identity(
             Some(icon::SQUARES_FOUR),
             None,
         ),
+        CommandId::ArrangeGridCustom => plain("Arrange Plots in Grid…", Some(icon::SQUARES_FOUR)),
         CommandId::SimplifyInnerAxes => plain("Simplify Inner Axes", Some(icon::ARROWS_IN_SIMPLE)),
         CommandId::SetSpacingMode(mode) => {
             let checked = app

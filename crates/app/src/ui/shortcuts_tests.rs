@@ -95,7 +95,7 @@ fn f_key_event() -> egui::Event {
 }
 
 /// Plain `F` is context-split: over a plot's data area it fits that plot's
-/// data viewport, elsewhere it keeps the board Zoom-to-Selection meaning.
+/// data viewport, elsewhere it keeps the board Show Selection meaning.
 #[test]
 fn plain_f_fits_the_plot_under_the_pointer_and_the_board_otherwise() {
     let (mut app, ids) = crate::ui::properties::fixture::contour_page(1);

@@ -138,17 +138,18 @@ const SCENES: &[Scene] = &[
     shot(8, "band"),
     act(2, Op::LineFit),
     shot(10, "fitted"),
-    // The three widths bracket the Ribbon's width budget: 720 forces the
-    // dense layout with the "More" overflow, 900 sits between the density
-    // breakpoints, and 1440 shows every group expanded. The Ribbon lays out
-    // by measured width, so these are the sizes where regressions appear.
+    // The three widths bracket the Ribbon's width budget: 720 steps the
+    // low-priority groups down to their Small and Collapsed scales, 900
+    // catches the first Medium steps, and 1440 shows every group at Large.
+    // The Ribbon lays out by measured width, so these are the sizes where
+    // regressions appear.
     act(2, Op::Zoom(1.0)),
     act(2, Op::Resize(720.0, 700.0)),
     shot(10, "ribbon_720"),
     act(2, Op::Resize(900.0, 760.0)),
     shot(12, "ribbon_900"),
-    // Every task tab at the in-between width, where density and overflow do
-    // the most work. The state carries a fitted 1D spectrum, so contextual
+    // Every task tab at the in-between width, where group scaling does the
+    // most work. The state carries a fitted 1D spectrum, so contextual
     // groups representative of the core workflow are present.
     act(2, Op::RibbonTab(WorkflowTab::Data)),
     shot(6, "ribbon_data_900"),

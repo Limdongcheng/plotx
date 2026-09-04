@@ -98,6 +98,7 @@ pub(super) fn command_ids(recent_files: usize) -> Vec<CommandId> {
         CommandId::TidyBoard,
         CommandId::CanvasSettings,
         CommandId::SimplifyInnerAxes,
+        CommandId::ArrangeGridCustom,
     ];
     ids.extend((0..recent_files).map(CommandId::OpenRecent));
     ids.extend(
