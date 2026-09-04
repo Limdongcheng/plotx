@@ -7,7 +7,7 @@ pub struct PropertyTextEditState {
     pub editing: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum XpsWorkbenchTab {
     #[default]
     Acquisition,

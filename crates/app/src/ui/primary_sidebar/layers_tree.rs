@@ -1,7 +1,14 @@
 use egui::Ui;
 use egui_phosphor::regular as icon;
-use plotx_core::actions::{Action, PanelState};
-use plotx_core::state::{ContentId, Panel, PanelId, PanelLabelMode, PlotxApp, SelectionPath};
+use plotx_core::actions::{Action, PanelState, ZOrder};
+use plotx_core::state::{
+    ContentId, ObjectId, Panel, PanelId, PanelLabelMode, PlotxApp, SelectionPath,
+};
+
+use super::layer_controls::{
+    kind_glyph, kind_label, lock_button, row as layer_row, truncated_selectable, visibility_button,
+};
+use super::selection::{claim_list_keyboard_focus, select_layer_range, select_modifiers};
 
 pub(super) fn render_panels(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
     let panels: Vec<_> = app.doc.canvases[ci]
@@ -11,7 +18,16 @@ pub(super) fn render_panels(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
         .rev()
         .collect();
     for panel in panels {
-        render_panel(app, ci, panel, ui);
+        // egui auto-ids are positional, so anchor each row to a global egui
+        // scope keyed by the typed panel id: otherwise every row after a list
+        // change (new canvas, dataset, or result above) is assigned fresh
+        // widget ids at unchanged rects, which drops focus and trips egui's
+        // debug id-change overlay. A salted non-global scope is not enough:
+        // its unique id still embeds the parent's positional auto-id counter.
+        let row_scope = egui::UiBuilder::new().id(egui::Id::new(("layers_panel_row", panel)));
+        ui.scope_builder(row_scope, |ui| {
+            render_panel(app, ci, panel, ui);
+        });
     }
     if app.session.ui.layers_drag_content.is_some()
         && ui.input(|input| input.pointer.primary_released())
@@ -129,8 +145,16 @@ fn render_panel(app: &mut PlotxApp, ci: usize, panel_id: PanelId, ui: &mut Ui) {
         app.enter_panel(ci, panel_id);
     }
     if open {
+        // `ContentId` is canvas-local, so the typed row identity needs the
+        // canvas resource id as well; see `render_panels` for why rows get
+        // global scopes at all.
+        let canvas = app.doc.canvases[ci].resource_id;
         for content in panel.item_order.iter().rev().copied() {
-            render_content(app, ci, panel_id, content, ui);
+            let row_scope =
+                egui::UiBuilder::new().id(egui::Id::new(("layers_content_row", canvas, content)));
+            ui.scope_builder(row_scope, |ui| {
+                render_content(app, ci, panel_id, content, ui);
+            });
         }
         if panel.item_order.is_empty() {
             super::layer_controls::row(
@@ -303,5 +327,174 @@ fn replace_panel(
             before,
             after: PanelState::of(&page),
         });
+    }
+}
+
+pub(super) fn object_list(app: &mut PlotxApp, ci: usize, ui: &mut Ui) {
+    render_panels(app, ci, ui);
+    let mut select = None;
+    let mut reorder: Option<(ObjectId, ZOrder)> = None;
+    let mut transfer: Option<(ObjectId, usize, bool)> = None;
+    let others = crate::ui::menus::other_canvas_destinations(app, ci);
+    let panel_destinations: Vec<_> = app.doc.canvases[ci]
+        .panels
+        .iter()
+        .filter(|panel| !panel.locked)
+        .map(|panel| (panel.id, panel_tree_name(app, ci, panel)))
+        .collect();
+    let count = app.doc.canvases[ci].objects.len();
+    // `ObjectId` is canvas-local, so the typed row identity includes the
+    // canvas resource id; see `render_panels`.
+    let canvas = app.doc.canvases[ci].resource_id;
+    for row in 0..count {
+        let oi = count - 1 - row;
+        let object_id = app.doc.canvases[ci].objects[oi].id;
+        if app.doc.canvases[ci].parent_panel(object_id).is_some() {
+            continue;
+        }
+        let locked_before = app.doc.canvases[ci].objects[oi].locked;
+        let row_scope =
+            egui::UiBuilder::new().id(egui::Id::new(("layers_object_row", canvas, object_id)));
+        let (_, (lock_change, row_reorder)) = ui
+            .scope_builder(row_scope, |ui| {
+                layer_row(
+                    ui,
+                    |ui| {
+                        let mut visible = app.doc.canvases[ci].objects[oi].visible;
+                        if visibility_button(ui, &mut visible).changed() {
+                            let before = (
+                                app.doc.canvases[ci].objects[oi].visible,
+                                app.doc.canvases[ci].objects[oi].locked,
+                            );
+                            app.execute_action(Action::set_object_flags(
+                                ci,
+                                object_id,
+                                before,
+                                (visible, before.1),
+                            ));
+                        }
+                        ui.weak(kind_glyph(&app.doc.canvases[ci].objects[oi].kind))
+                            .on_hover_text(kind_label(&app.doc.canvases[ci].objects[oi].kind));
+                        if app.doc.canvases[ci]
+                            .content_group(app.doc.canvases[ci].objects[oi].id)
+                            .is_some()
+                        {
+                            ui.weak(egui::RichText::new("⛓").small())
+                                .on_hover_text("Grouped");
+                        }
+                        let selected = app.session.ui.selection.contains(object_id)
+                            || app.session.ui.selection.object() == Some(object_id);
+                        let resp = truncated_selectable(
+                            ui,
+                            selected,
+                            app.doc.canvases[ci].objects[oi].name.clone(),
+                        )
+                        .interact(egui::Sense::click_and_drag());
+                        if resp.drag_started() {
+                            app.session.ui.layers_drag_content = Some(object_id);
+                        }
+                        if resp.clicked() || (resp.secondary_clicked() && !selected) {
+                            claim_list_keyboard_focus(ui, &resp);
+                            select = Some((object_id, select_modifiers(ui)));
+                        }
+                        resp.context_menu(|ui| {
+                            object_transfer_menu(ui, object_id, &others, &mut transfer);
+                            if !panel_destinations.is_empty() {
+                                ui.menu_button("Move into panel", |ui| {
+                                    for (panel, name) in &panel_destinations {
+                                        if ui.button(name).clicked() {
+                                            app.select_content(ci, object_id);
+                                            crate::ui::commands::execute_without_clipboard(
+                                                crate::ui::commands::CommandId::MoveContentToPanel(
+                                                    Some(*panel),
+                                                ),
+                                                app,
+                                                ui.ctx(),
+                                            );
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    },
+                    |ui| {
+                        let mut locked = locked_before;
+                        let lock_change = lock_button(ui, &mut locked).changed().then_some(locked);
+                        let mut row_reorder = None;
+                        if ui
+                            .add_enabled(
+                                row + 1 < count,
+                                egui::Button::new(icon::CARET_DOWN).small().frame(false),
+                            )
+                            .on_hover_text("Send backward")
+                            .clicked()
+                        {
+                            row_reorder = Some(ZOrder::Backward);
+                        }
+                        if ui
+                            .add_enabled(
+                                row > 0,
+                                egui::Button::new(icon::CARET_UP).small().frame(false),
+                            )
+                            .on_hover_text("Bring forward")
+                            .clicked()
+                        {
+                            row_reorder = Some(ZOrder::Forward);
+                        }
+                        (lock_change, row_reorder)
+                    },
+                )
+            })
+            .inner;
+        if let Some(locked) = lock_change
+            && let Some(target) = app.object_target(ci, object_id)
+            && let Ok(commit) = app.plan_property_write(
+                plotx_core::properties::object::LOCKED,
+                std::slice::from_ref(&target),
+                &plotx_core::properties::PropertyValue::Bool(locked),
+            )
+        {
+            app.commit_property(commit);
+        }
+        if let Some(operation) = row_reorder {
+            reorder = Some((object_id, operation));
+        }
+    }
+    if let Some((object_id, modifiers)) = select {
+        app.session.ui.selection_scope = plotx_core::state::SelectionScope::Layers;
+        select_layer_range(app, ci, object_id, modifiers);
+        let active = app.doc.canvases[ci]
+            .object(object_id)
+            .and_then(|object| object.dataset())
+            .and_then(|id| app.doc.dataset_index(id));
+        app.set_active_dataset(active);
+        app.reset_interaction();
+        app.session.ui.panel_note_inline_edit = None;
+        app.session.ui.panel_note_edit = None;
+    }
+    if let Some((object_id, op)) = reorder {
+        app.apply_z_order(ci, &[object_id], op);
+    }
+    if let Some((object_id, to, is_move)) = transfer {
+        app.transfer_objects_to_canvas(ci, &[object_id], to, is_move);
+    }
+}
+fn object_transfer_menu(
+    ui: &mut Ui,
+    object_id: ObjectId,
+    others: &[(usize, String)],
+    transfer: &mut Option<(ObjectId, usize, bool)>,
+) {
+    let mut picked = None;
+    crate::ui::menus::transfer_to_canvas_menu(
+        ui,
+        others,
+        "Move to canvas",
+        "Copy to canvas",
+        &mut picked,
+    );
+    if let Some((to, is_move)) = picked {
+        *transfer = Some((object_id, to, is_move));
     }
 }
