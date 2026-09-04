@@ -60,7 +60,10 @@ pub(super) fn xps_group(app: &mut PlotxApp, dataset_index: usize, ui: &mut Ui) -
     app.session.ui.xps_workbench_tab = tab;
     ui.separator();
 
-    match tab {
+    // Scope each workbench tab's widgets by the tab: the tabs place different
+    // controls at the same rects, and without the salt a tab switch re-issues
+    // the previous tab's positional widget ids to the new tab's controls.
+    ui.push_id(("xps_workbench_tab", tab), |ui| match tab {
         XpsWorkbenchTab::Acquisition => acquisition_tab(
             app,
             dataset_index,
@@ -111,7 +114,7 @@ pub(super) fn xps_group(app: &mut PlotxApp, dataset_index: usize, ui: &mut Ui) -
             latest_fit.as_ref(),
             ui,
         ),
-    }
+    });
     false
 }
 
