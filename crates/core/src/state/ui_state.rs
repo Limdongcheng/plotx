@@ -149,6 +149,20 @@ pub struct RasterProxy {
     pub rgba8: std::sync::Arc<[u8]>,
 }
 
+/// Rows × columns the Arrange tab's grid popover proposes. The last size used
+/// carries over, so arranging a second canvas the same way needs no retyping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArrangeGridDraft {
+    pub rows: u32,
+    pub cols: u32,
+}
+
+impl Default for ArrangeGridDraft {
+    fn default() -> Self {
+        Self { rows: 2, cols: 2 }
+    }
+}
+
 pub struct UiState {
     /// The single in-flight direct-manipulation gesture; see [`Interaction`].
     pub interaction: Interaction,
@@ -195,6 +209,7 @@ pub struct UiState {
     pub command_palette: Option<CommandPaletteState>,
     pub ribbon_tab: WorkflowTab,
     pub ribbon_expanded: bool,
+    pub arrange_grid_draft: ArrangeGridDraft,
     pub about_open: bool,
     pub diagnostics_open: bool,
     /// Feedback-banner watermark: every warning/failure reported at or before
@@ -433,6 +448,7 @@ impl Default for UiState {
             command_palette: None,
             ribbon_tab: WorkflowTab::default(),
             ribbon_expanded: true,
+            arrange_grid_draft: ArrangeGridDraft::default(),
             about_open: false,
             diagnostics_open: false,
             dismissed_feedback_order: None,

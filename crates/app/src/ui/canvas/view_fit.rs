@@ -43,7 +43,7 @@ fn uncovered_pointer(app: &PlotxApp, ctx: &egui::Context) -> Option<Pos2> {
 
 /// Whether the plain `F` chord currently addresses a plot's data viewport:
 /// the pointer rests on the data area of a plot on the active canvas. Outside
-/// that context the chord keeps its board meaning (Zoom to Selection).
+/// that context the chord keeps its board meaning (Show Selection).
 pub(crate) fn pointer_in_plot_data(app: &PlotxApp, ctx: &egui::Context) -> bool {
     let Some(ci) = app.session.active_canvas else {
         return false;

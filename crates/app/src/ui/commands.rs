@@ -17,6 +17,7 @@ use helpers::{has_active_plot, requires, selected_paths_unlocked};
 mod ribbon;
 mod roster;
 use ribbon::ribbon_placement;
+pub(crate) use ribbon::stack_row;
 pub use ribbon::{Applicability, RibbonPlacement};
 use roster::command_ids;
 pub(crate) const MANUAL_URL: &str = "https://docs.plotx.nmrtist.space/";
@@ -112,6 +113,10 @@ pub enum CommandId {
     CanvasSettings,
     SetCanvasSizePreset(&'static str),
     ArrangeGrid(u32, u32),
+    /// Open the Arrange tab's grid popover, where the user types the rows and
+    /// columns and the result runs as one [`CommandId::ArrangeGrid`]. The
+    /// preset sizes stay in the menus and the palette.
+    ArrangeGridCustom,
     SimplifyInnerAxes,
     SetSpacingMode(SpacingMode),
     SetGutterPreset(GutterPreset),
@@ -371,13 +376,13 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
                     .is_some_and(|ci| !app.doc.canvases[ci].panels.is_empty()),
             "Create a panel before renumbering panel labels.",
         ),
-        CommandId::ZoomToFit => requires(has_canvas, "Open a canvas before zooming to fit."),
+        CommandId::ZoomToFit => requires(has_canvas, "Open a canvas before showing all of it."),
         CommandId::FitPlotY | CommandId::FitPlotXY => requires(
             has_active_plot(app),
             "Plot a dataset on the canvas before fitting its data view.",
         ),
         CommandId::ZoomToSelection => {
-            requires(has_canvas, "Open a canvas before zooming to the selection.")
+            requires(has_canvas, "Open a canvas before showing the selection.")
         }
         CommandId::UiScaleUp | CommandId::UiScaleDown => requires(
             app.session.monitor.is_some(),
@@ -545,6 +550,7 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
             requires(has_canvas, "Open a canvas before changing its size.")
         }
         CommandId::ArrangeGrid(_, _)
+        | CommandId::ArrangeGridCustom
         | CommandId::SimplifyInnerAxes
         | CommandId::SetSpacingMode(_)
         | CommandId::SetGutterPreset(_) => {
@@ -602,6 +608,16 @@ pub fn describe(app: &PlotxApp, id: CommandId) -> CommandDescriptor {
                 .and_then(Dataset::as_nmr2d)
                 .is_some_and(|dataset| dataset.supports_symmetry_review()),
             "Select a homonuclear COSY, TOCSY, or NOESY / ROESY contour spectrum.",
+        ),
+        // On-plot phasing needs a spectrum with a phase step to act on. The
+        // gate is the Phase settings tile's, so the tool and the settings it
+        // drives never disagree about when phasing is possible.
+        CommandId::Tool(Tool::ManualPhase) => requires(
+            super::properties::discovery::group_applies(
+                app,
+                super::properties::panel::PHASE_SECTION,
+            ),
+            "Select an NMR spectrum with a phase processing step before phasing it by hand.",
         ),
         CommandId::Tool(tool) if tool.is_data_tool() => requires(
             dataset().is_some(),
@@ -669,6 +685,9 @@ mod identity_tests;
 #[cfg(test)]
 #[path = "commands_mass_spec_tests.rs"]
 mod mass_spec_tests;
+#[cfg(test)]
+#[path = "commands_ribbon_tests.rs"]
+mod ribbon_tests;
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;

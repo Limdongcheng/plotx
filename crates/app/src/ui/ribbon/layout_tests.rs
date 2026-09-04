@@ -172,6 +172,41 @@ fn stacked_scales_hold_two_cells_per_column() {
     }
 }
 
+/// The Align group's two families stack as rows: the horizontal alignments
+/// across the top, each over its vertical counterpart, rather than pairing
+/// catalog neighbours (which put Left over Center and Right over Top).
+#[test]
+fn align_stacks_the_horizontal_family_over_the_vertical_one() {
+    use plotx_core::layout::Align;
+
+    let app = app();
+    let catalog = commands::catalog(&app);
+    let groups = groups_for_tab(&catalog, WorkflowTab::Arrange);
+    let (_, _, align) = groups
+        .iter()
+        .find(|(group, _, _)| *group == "Align")
+        .expect("the Arrange tab has an Align group");
+    let horizontal = [Align::Left, Align::HCenter, Align::Right].map(CommandId::Align);
+    let vertical = [Align::Top, Align::VCenter, Align::Bottom].map(CommandId::Align);
+    for scale in [GroupScale::Medium, GroupScale::Small] {
+        let columns = columns(align, scale, &estimate);
+        let row = |index: usize| -> Vec<CommandId> {
+            columns
+                .iter()
+                .map(|column| column.cells[index].command.id)
+                .collect()
+        };
+        assert_eq!(row(0), horizontal, "{scale:?} top row");
+        assert_eq!(row(1), vertical, "{scale:?} bottom row");
+    }
+    // Large keeps the catalog order in one row.
+    let large: Vec<CommandId> = columns(align, GroupScale::Large, &estimate)
+        .iter()
+        .map(|column| column.cells[0].command.id)
+        .collect();
+    assert_eq!(large, [horizontal, vertical].concat());
+}
+
 #[test]
 fn small_keeps_the_label_of_a_command_its_icon_cannot_name() {
     let app = app();

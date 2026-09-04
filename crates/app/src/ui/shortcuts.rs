@@ -278,7 +278,7 @@ pub(super) fn handle_palette_shortcut(
 
 /// Sole owner of the plain `F` chord, which is context-split: with the pointer
 /// on a plot's data area it fits that plot's data viewport on both axes, and
-/// everywhere else it keeps its original board meaning, Zoom to Selection. The
+/// everywhere else it keeps its original board meaning, Show Selection. The
 /// split lives in this focused handler instead of the dispatch table so both
 /// commands keep their own identity, gating and palette entries.
 pub(super) fn handle_plot_fit_shortcut(

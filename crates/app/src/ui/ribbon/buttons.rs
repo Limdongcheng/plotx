@@ -52,7 +52,7 @@ pub(super) fn short_label(command: &CommandDescriptor) -> String {
         CommandId::ToggleSnap => "Snapping".to_owned(),
         CommandId::TogglePrimarySidebar => "Left Bar".to_owned(),
         CommandId::ToggleSecondarySidebar => "Right Bar".to_owned(),
-        CommandId::ArrangeGrid(rows, cols) => format!("Plots {rows} × {cols}"),
+        CommandId::ArrangeGridCustom => "Plots Grid".to_owned(),
         CommandId::ZOrder(mode) => match mode {
             ZOrder::Front => "To Front",
             ZOrder::Forward => "Forward",
@@ -154,7 +154,70 @@ pub(super) fn ribbon_button(
             )
         }
     };
+    if command.id == CommandId::ArrangeGridCustom {
+        // The command toggles the popover's open state; the popover itself
+        // is drawn here, anchored to this tile, after the toggle has run.
+        let anchor = response.clone();
+        respond(app, clipboard, ui, command, response);
+        arrange_grid_popover(app, clipboard, &anchor);
+        return;
+    }
     respond(app, clipboard, ui, command, response);
+}
+
+/// Largest grid side the popover offers; more rows or columns than this
+/// would leave every plot unreadably small on any page size.
+const MAX_GRID_SIDE: u32 = 12;
+
+/// The grid popover's id: fixed rather than derived from the tile's `Ui`, so
+/// the command that opens it from the palette or a menu can name it.
+pub(super) fn arrange_grid_popup_id() -> egui::Id {
+    egui::Id::new("ribbon_arrange_grid_popover")
+}
+
+/// The Arrange tab's grid popover: rows and columns typed by the user, then
+/// one `ArrangeGrid` command with those values, so a custom grid runs through
+/// the same catalog entry, gate and history as the presets.
+fn arrange_grid_popover(
+    app: &mut PlotxApp,
+    clipboard: &mut ClipboardTablePaste,
+    anchor: &Response,
+) {
+    egui::Popup::from_response(anchor)
+        .id(arrange_grid_popup_id())
+        .open_memory(None)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .show(|ui| {
+            ui.set_min_width(168.0);
+            ui.label(crate::typography::headline("Arrange plots in a grid"));
+            ui.add_space(4.0);
+            let draft = &mut app.session.ui.arrange_grid_draft;
+            egui::Grid::new("arrange_grid_draft")
+                .num_columns(2)
+                .spacing([12.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label("Rows");
+                    ui.add(egui::DragValue::new(&mut draft.rows).range(1..=MAX_GRID_SIDE));
+                    ui.end_row();
+                    ui.label("Columns");
+                    ui.add(egui::DragValue::new(&mut draft.cols).range(1..=MAX_GRID_SIDE));
+                    ui.end_row();
+                });
+            let (rows, cols) = (draft.rows, draft.cols);
+            ui.add_space(6.0);
+            let arrange = CommandId::ArrangeGrid(rows, cols);
+            let command = commands::describe(app, arrange);
+            let button = ui.add_enabled(
+                command.enabled,
+                Button::new(format!("Arrange {rows} × {cols}")),
+            );
+            if button.clicked() {
+                commands::execute(arrange, app, clipboard, ui.ctx());
+                ui.close();
+            } else if let Some(reason) = command.disabled_reason {
+                button.on_disabled_hover_text(reason);
+            }
+        });
 }
 
 /// The Collapsed group tile: the group's lead icon over its title and a

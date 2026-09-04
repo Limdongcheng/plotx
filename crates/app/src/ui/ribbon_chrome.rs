@@ -143,7 +143,7 @@ fn controls_width(app: &PlotxApp, ui: &Ui, compact: bool) -> f32 {
         }
         _ => String::new(),
     };
-    let spacing = ui.spacing().item_spacing.x;
+    let spacing = CONTROL_SPACING;
     [collapse, search, update]
         .into_iter()
         .filter(|text| !text.is_empty())
@@ -159,6 +159,12 @@ fn controls_width(app: &PlotxApp, ui: &Ui, compact: bool) -> f32 {
 /// Fixed width of one sidebar layout toggle; shared with the width estimate
 /// in `controls_width` so compaction accounts for the pair.
 pub(super) const SIDEBAR_TOGGLE_WIDTH: f32 = 30.0;
+
+/// Gap between the trailing chrome controls. The tab strip's spacing follows
+/// the Ribbon density, and the controls must not inherit it: a tab switch
+/// that changes density would otherwise slide the collapse, search and
+/// sidebar buttons sideways.
+pub(super) const CONTROL_SPACING: f32 = 8.0;
 
 /// Always-visible sidebar toggle for the task row. The glyph mirrors the
 /// window layout: the band marks which side the command controls and is

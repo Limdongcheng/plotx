@@ -6,7 +6,7 @@
 use egui::FontId;
 use plotx_core::state::WorkflowTab;
 
-use super::super::commands::CommandDescriptor;
+use super::super::commands::{self, CommandDescriptor};
 use super::RibbonDensity;
 use super::buttons::short_label;
 
@@ -259,7 +259,7 @@ pub(super) fn columns<'a>(
     let tile = tile_width(entries, measure);
     let per_column = if scale == GroupScale::Large { 1 } else { 2 };
     let mut columns: Vec<Column<'a>> = Vec::new();
-    for &command in entries {
+    for command in stacking_order(entries, per_column) {
         let cell_scale = if scale == GroupScale::Small && !icon_identifies(command, entries) {
             GroupScale::Medium
         } else {
@@ -286,6 +286,39 @@ pub(super) fn columns<'a>(
         }
     }
     columns
+}
+
+/// The order cells are dealt into columns, top to bottom then left to
+/// right. When every command of a stacked group declares a stack row
+/// ([`commands::stack_row`]), the two rows are interleaved so each column
+/// pairs the matching members of the two families; otherwise, and at Large,
+/// the catalog order stands.
+fn stacking_order<'a>(
+    entries: &[&'a CommandDescriptor],
+    per_column: usize,
+) -> Vec<&'a CommandDescriptor> {
+    let rows: Option<Vec<u8>> = entries
+        .iter()
+        .map(|command| commands::stack_row(command.id))
+        .collect();
+    let Some(rows) = rows.filter(|_| per_column == 2) else {
+        return entries.to_vec();
+    };
+    let family = |row: u8| -> Vec<&'a CommandDescriptor> {
+        entries
+            .iter()
+            .zip(&rows)
+            .filter(|&(_, &r)| r == row)
+            .map(|(&command, _)| command)
+            .collect()
+    };
+    let (top, bottom) = (family(0), family(1));
+    let mut order = Vec::with_capacity(entries.len());
+    for index in 0..top.len().max(bottom.len()) {
+        order.extend(top.get(index));
+        order.extend(bottom.get(index));
+    }
+    order
 }
 
 /// Whether `command`'s icon alone tells it apart within its group: it has

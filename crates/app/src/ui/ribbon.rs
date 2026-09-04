@@ -10,7 +10,7 @@ use egui::{
     Vec2, vec2,
 };
 use egui_phosphor::regular as icon;
-use plotx_core::state::{PlotxApp, ToolGroup, WorkflowTab};
+use plotx_core::state::{ArrangeGridDraft, PlotxApp, ToolGroup, WorkflowTab};
 
 use super::clipboard_table::ClipboardTablePaste;
 use super::commands::{self, CommandDescriptor, CommandId};
@@ -162,6 +162,10 @@ fn render_task_row_contents(
     }
 
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        // The controls keep their own spacing: the density-dependent gap set
+        // above belongs to the tab strip, and inheriting it moved the
+        // controls on every tab switch that changed the density.
+        ui.spacing_mut().item_spacing.x = super::ribbon_chrome::CONTROL_SPACING;
         // Stable id scope: siblings earlier in this row (the inline project
         // title, tab labels) come and go with app state; without this every
         // control in the strip changes id when they do, which drops focus
@@ -232,6 +236,35 @@ fn render_chrome_controls(
         ui,
         CommandId::TogglePrimarySidebar,
     );
+}
+
+/// Open the Arrange tab's grid popover, or close it when it is already open.
+/// The popover anchors to its Layout tile, so opening it brings the Ribbon to
+/// the Arrange tab for a palette or menu invocation. A canvas already laid
+/// out as a grid seeds its own size; otherwise the draft keeps the last size
+/// used.
+pub(crate) fn toggle_arrange_grid_popover(app: &mut PlotxApp, ctx: &egui::Context) {
+    let popup_id = buttons::arrange_grid_popup_id();
+    if egui::Popup::is_id_open(ctx, popup_id) {
+        egui::Popup::close_id(ctx, popup_id);
+        return;
+    }
+    let layout = app
+        .session
+        .active_canvas
+        .and_then(|ci| app.doc.canvases.get(ci))
+        .map(|canvas| canvas.layout);
+    if let Some(layout) = layout
+        && (layout.rows > 1 || layout.cols > 1)
+    {
+        app.session.ui.arrange_grid_draft = ArrangeGridDraft {
+            rows: layout.rows,
+            cols: layout.cols,
+        };
+    }
+    app.session.ui.ribbon_tab = WorkflowTab::Arrange;
+    app.session.ui.ribbon_expanded = true;
+    egui::Popup::open_id(ctx, popup_id);
 }
 
 fn select_workflow_tab(app: &mut PlotxApp, tab: WorkflowTab) {
