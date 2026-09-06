@@ -114,7 +114,7 @@ fn panel_detach_checks_all_canvas_bounds_not_only_pointer_and_escape_cancels() {
 }
 
 #[test]
-fn panel_detach_excludes_resize_multi_selection_and_release_back_over_page() {
+fn panel_detach_excludes_multi_selection_and_release_back_over_page() {
     let (mut app, ctx, rect, pointer) = fixture();
     frame(&mut app, &ctx, rect, Some(pointer), 1.0, false);
     if let Interaction::Panel(drag) = &mut app.session.ui.interaction {

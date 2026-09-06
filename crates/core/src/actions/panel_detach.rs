@@ -90,7 +90,14 @@ impl PlotxApp {
             group.members.retain(|id| !ids.contains(id));
             group.members.len() >= 2
         });
+        // Undo must restore the source contents before reactivating its dataset context.
         Ok(Action::Composite(vec![
+            Action::InsertCanvas {
+                index: self.doc.canvases.len(),
+                canvas: Box::new(destination),
+                active_before: self.session.active_canvas,
+                auto_place: false,
+            },
             Action::ReplacePanelState {
                 canvas: ci,
                 before,
@@ -100,11 +107,6 @@ impl PlotxApp {
                 canvas: ci,
                 before: source.x_viewport_links.clone(),
                 after: source_links,
-            },
-            Action::InsertCanvas {
-                index: self.doc.canvases.len(),
-                canvas: Box::new(destination),
-                active_before: self.session.active_canvas,
             },
         ]))
     }
