@@ -245,6 +245,7 @@ pub fn render_central(app: &mut PlotxApp, ui: &mut Ui) {
         }
         let editor_bounds = board_transform.canvas_editor_screen_rect(&app.doc.canvases[other]);
         if finite_rect_intersects(editor_bounds, clip) {
+            paint_panel_detach_background(app, other, rect, &painter);
             paint_document(app, other, rect, &painter);
         }
         if finite_rect_intersects(other_page, clip) && other != ci {

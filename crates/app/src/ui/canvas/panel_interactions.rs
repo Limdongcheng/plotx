@@ -1,7 +1,7 @@
 use super::*;
 
 mod detach;
-pub(crate) use detach::paint_panel_detach;
+pub(crate) use detach::{paint_panel_detach, paint_panel_detach_background};
 
 pub(crate) fn handle_panel_drag(
     app: &mut PlotxApp,

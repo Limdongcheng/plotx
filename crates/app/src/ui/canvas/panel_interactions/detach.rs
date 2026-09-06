@@ -121,9 +121,14 @@ pub(crate) fn paint_panel_detach(
         StrokeKind::Inside,
     );
     let size = Vec2::new(196.0, 34.0);
-    let min = (pointer + Vec2::new(16.0, 20.0))
-        .min(rect.max - size)
-        .max(rect.min);
+    let anchor = if r.bottom() + size.y + 8.0 <= rect.bottom() {
+        r.left_bottom() + Vec2::new(0.0, 8.0)
+    } else if r.top() - size.y - 8.0 >= rect.top() {
+        r.left_top() - Vec2::new(0.0, size.y + 8.0)
+    } else {
+        pointer + Vec2::new(16.0, 20.0)
+    };
+    let min = anchor.min(rect.max - size).max(rect.min);
     let badge = EguiRect::from_min_size(min, size);
     let visuals = painter.ctx().global_style().visuals.clone();
     painter.rect_filled(badge, 4.0, visuals.extreme_bg_color);
@@ -152,3 +157,29 @@ pub(crate) fn paint_panel_detach(
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn paint_panel_detach_background(
+    app: &PlotxApp,
+    ci: usize,
+    rect: EguiRect,
+    painter: &egui::Painter,
+) {
+    let Interaction::Panel(drag) = &app.session.ui.interaction else {
+        return;
+    };
+    if drag.canvas != ci || drag.detached_since.is_none() {
+        return;
+    }
+    let page = &app.doc.canvases[ci];
+    let Some(panel) = page.panel(drag.panel) else {
+        return;
+    };
+    let bt = BoardTransform::from_board(app.session.board, rect);
+    let frame = panel.frame;
+    let r = EguiRect::from_min_size(
+        bt.page_screen_rect(page).min + Vec2::new(frame.x, frame.y) * bt.zoom,
+        Vec2::new(frame.width, frame.height) * bt.zoom,
+    );
+    let color = page.background;
+    painter.rect_filled(r, 0.0, Color32::from_rgb(color.r, color.g, color.b));
+}
