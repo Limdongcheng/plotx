@@ -90,6 +90,7 @@ enum Op {
     RegionData,
     XpsSetup,
     CraftSetup,
+    PanelControls(bool),
     XpsTab(plotx_core::state::XpsWorkbenchTab),
     /// Show a Ribbon task tab. Sets the state directly (like [`Op::XpsTab`])
     /// so the capture shows the tab's command row without the side effects a
@@ -197,6 +198,18 @@ const SCENES: &[Scene] = &[
     shot(8, "xps_diagnostics"),
     act(2, Op::CraftSetup),
     shot(8, "craft_results"),
+    act(2, Op::PanelControls(false)),
+    shot(8, "panel_controls_collapsed"),
+    act(2, Op::Resize(720.0, 700.0)),
+    shot(8, "panel_controls_narrow"),
+    act(2, Op::Resize(1440.0, 900.0)),
+    act(2, Op::PanelControls(true)),
+    shot(8, "panel_controls_expanded"),
+    Scene {
+        settle: 4,
+        op: None,
+        shot: None,
+    },
 ];
 
 pub struct ShotDriver {
@@ -379,6 +392,10 @@ fn run_op(op: Op, app: &mut PlotxApp, ctx: &egui::Context) -> Result<(), String>
         }
         Op::XpsSetup => xps_setup(app, ctx)?,
         Op::CraftSetup => craft_shot::setup(app, ctx)?,
+        Op::PanelControls(expanded) => {
+            app.session.ui.ribbon_expanded = expanded;
+            app.session.ui.craft_task_collapsed = !expanded;
+        }
         Op::XpsTab(tab) => app.session.ui.xps_workbench_tab = tab,
         Op::RibbonTab(tab) => app.session.ui.ribbon_tab = tab,
         Op::Zoom(factor) => ctx.set_zoom_factor(factor),
@@ -773,24 +790,5 @@ fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn automated_exit_bypasses_dirty_project_prompt() {
-        let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        app.mark_document_dirty();
-        let ctx = egui::Context::default();
-
-        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            request_exit(&mut app, ui.ctx());
-        });
-
-        assert!(app.session.allow_close);
-        let root = output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
-            .expect("root viewport output");
-        assert!(root.commands.contains(&egui::ViewportCommand::Close));
-    }
-}
+#[path = "shot/tests.rs"]
+mod tests;
