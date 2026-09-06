@@ -13,7 +13,7 @@
 //! restrict the run to a single palette. Captures land at
 //! `<PLOTX_SHOT>/<theme>/<scene>.png`.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -31,6 +31,7 @@ use plotx_io::xps::{
 };
 use plotx_io::{AxisSource, Dim, Domain, NmrData, NmrData2D, PseudoAxis, PseudoKind, QuadMode};
 
+mod capture;
 mod craft_shot;
 
 const FIT_LO: f64 = 1.4;
@@ -88,6 +89,7 @@ enum Op {
     RegionResult,
     /// Open the result's synchronized read-only values.
     RegionData,
+    History(bool),
     XpsSetup,
     CraftSetup,
     XpsTab(plotx_core::state::XpsWorkbenchTab),
@@ -136,6 +138,9 @@ const SCENES: &[Scene] = &[
     act(2, Op::Zoom(0.75)),
     act(2, Op::Setup),
     shot(8, "band"),
+    act(2, Op::History(true)),
+    shot(8, "operation_history"),
+    act(2, Op::History(false)),
     act(2, Op::LineFit),
     shot(10, "fitted"),
     // The three widths bracket the Ribbon's width budget: 720 steps the
@@ -331,7 +336,7 @@ impl ShotDriver {
                 .collect()
         });
         for (rel, image) in shots {
-            if let Err(error) = save_png(&self.dir.join(format!("{rel}.png")), &image) {
+            if let Err(error) = capture::save_png(&self.dir.join(format!("{rel}.png")), &image) {
                 self.fail(app, ctx, format!("failed to save {rel}: {error}"));
                 return;
             }
@@ -373,6 +378,12 @@ fn run_op(op: Op, app: &mut PlotxApp, ctx: &egui::Context) -> Result<(), String>
         Op::DeltaCursor => delta_cursor(app)?,
         Op::PinSymmetry => pin_symmetry(app)?,
         Op::RegionResult => region_result(app),
+        Op::History(open) => {
+            app.session.ui.diagnostics_open = open;
+            ctx.data_mut(|data| {
+                data.insert_temp(egui::Id::new("operation_history_messages_tab"), true)
+            });
+        }
         Op::RegionData => {
             app.session.ui.sheet_open = Some(1);
             app.session.ui.curve_fit_task_collapsed = true;
@@ -754,43 +765,6 @@ fn synthetic_cosy() -> plotx_io::NmrData2D {
     }
 }
 
-fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|error| format!("create {}: {error}", parent.display()))?;
-    }
-    let [width, height] = image.size;
-    // egui screenshots are opaque RGBA8, so straight-alpha encoding is exact.
-    image::save_buffer_with_format(
-        path,
-        image.as_raw(),
-        width as u32,
-        height as u32,
-        image::ColorType::Rgba8,
-        image::ImageFormat::Png,
-    )
-    .map_err(|error| format!("encode {}: {error}", path.display()))
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn automated_exit_bypasses_dirty_project_prompt() {
-        let mut app = PlotxApp::new_with_settings(plotx_core::settings::Settings::default());
-        app.mark_document_dirty();
-        let ctx = egui::Context::default();
-
-        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            request_exit(&mut app, ui.ctx());
-        });
-
-        assert!(app.session.allow_close);
-        let root = output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
-            .expect("root viewport output");
-        assert!(root.commands.contains(&egui::ViewportCommand::Close));
-    }
-}
+#[path = "shot/tests.rs"]
+mod tests;

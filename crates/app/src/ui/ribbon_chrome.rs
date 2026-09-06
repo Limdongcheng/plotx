@@ -145,6 +145,8 @@ fn controls_width(app: &PlotxApp, ui: &Ui, compact: bool) -> f32 {
         + 2.0 * SIDEBAR_TOGGLE_WIDTH
         + 6.0
         + 5.0 * spacing
+        // The history button and its gap.
+        + SIDEBAR_TOGGLE_WIDTH + CONTROL_SPACING
 }
 
 /// Fixed width of one sidebar layout toggle; shared with the width estimate
