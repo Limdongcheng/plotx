@@ -73,6 +73,14 @@ pub(crate) fn handle_panel_drag(
         }
     }
     if (primary_released || !primary_down)
+        && active
+        && let Some(target) = swap::target(app, &drag, rect, hover)
+    {
+        app.take_interaction();
+        swap::commit(app, &drag, target);
+        return;
+    }
+    if (primary_released || !primary_down)
         && let Interaction::Panel(drag) = app.take_interaction()
         && active
     {
@@ -85,6 +93,9 @@ pub(crate) fn handle_panel_drag(
         }
     }
 }
+
+mod swap;
+pub(crate) use swap::paint_panel_swap;
 
 pub(crate) fn begin_panel_drag(
     app: &mut PlotxApp,
