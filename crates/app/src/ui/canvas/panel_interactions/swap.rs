@@ -48,6 +48,25 @@ pub(super) fn commit(app: &mut PlotxApp, drag: &PanelDrag, target: PanelId) {
     }
 }
 
+pub(super) fn restore_preview(app: &mut PlotxApp, rect: EguiRect, pointer: Option<Pos2>) {
+    let Interaction::Panel(drag) = &app.session.ui.interaction else {
+        return;
+    };
+    if target(app, drag, rect, pointer).is_none() {
+        return;
+    }
+    let (canvas, panel, before) = (drag.canvas, drag.panel, drag.before);
+    // Both highlighted slots remain readable while the pending exchange is shown.
+    if let Some(panel) = app
+        .doc
+        .canvases
+        .get_mut(canvas)
+        .and_then(|page| page.panel_mut(panel))
+    {
+        panel.frame = before;
+    }
+}
+
 pub(crate) fn paint_panel_swap(
     app: &PlotxApp,
     rect: EguiRect,

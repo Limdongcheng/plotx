@@ -16,7 +16,7 @@ pub(crate) fn handle_panel_drag(
         return;
     };
     let mut active = drag.active;
-    if primary_down
+    if (primary_down || primary_released)
         && let Some(screen_now) = hover
         && let Some(pointer_page) =
             screen_to_page_unbounded(app.session.board, &app.doc.canvases[ci], rect, screen_now)
@@ -65,6 +65,7 @@ pub(crate) fn handle_panel_drag(
                     }
                 }
             }
+            swap::restore_preview(app, rect, hover);
             if let Some(source) = tile_source_for_panel(app, &drag)
                 && update_tile_drop(app, ci, rect, source, hover)
             {
