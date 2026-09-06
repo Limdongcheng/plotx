@@ -9,7 +9,7 @@ pub(crate) fn handle_panel_drag(
     primary_released: bool,
     alt: bool,
 ) {
-    let Some(drag) = (match &app.session.ui.interaction {
+    let Some(mut drag) = (match &app.session.ui.interaction {
         Interaction::Panel(d) if d.canvas == ci => Some(d.clone()),
         _ => None,
     }) else {
@@ -26,6 +26,7 @@ pub(crate) fn handle_panel_drag(
         let dsx = screen_now.x - drag.start_pointer_screen[0];
         let dsy = screen_now.y - drag.start_pointer_screen[1];
         active |= dsx.hypot(dsy) > DRAG_START_PX;
+        drag.active = active;
         if let Interaction::Panel(current) = &mut app.session.ui.interaction {
             current.active = active;
         }
